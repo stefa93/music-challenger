@@ -6,7 +6,7 @@ import { OnboardingForm, OnboardingFormData } from './OnboardingForm';
 
 // Image data for the floating background
 const exampleImages = [
- {
+  {
     url: "https://images.unsplash.com/photo-1727341554370-80e0fe9ad082?q=80&w=2276&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     author: "Branislav Rodman",
     title: "A Black and White Photo of a Woman Brushing Her Teeth",
@@ -57,57 +57,58 @@ interface OnboardingProps {
 const Onboarding: React.FC<OnboardingProps> = ({ onSubmit, isLoading, error }) => {
   return (
     // Container for centering and background effect
-    <div className="relative h-screen w-screen max-h-screen max-w-screen flex items-center justify-center overflow-hidden overflow-x-hidden overflow-y-hidden bg-background">
+    <div className="fixed inset-0 flex items-center justify-center overflow-hidden bg-background">
       {/* Floating Background Elements */}
-      <Floating sensitivity={0.5} className="h-full w-full">
-         {/* Example placement - adjust positions and depths as needed */}
-        <FloatingElement depth={0.5} className="top-[15%] left-[5%]">
+      <Floating sensitivity={0.5} className="absolute inset-0">
+        {/* Example placement - adjust positions and depths as needed */}
+        <FloatingElement depth={0.5} className="absolute top-[20%] left-[15%]">
           <motion.img
             src={exampleImages[0].url} alt={exampleImages[0].title}
             className="w-28 h-20 object-cover shadow-creative shadow-foreground rounded-lg -rotate-3 opacity-70"
             initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 0.1 }}
           />
         </FloatingElement>
-        <FloatingElement depth={1} className="top-[5%] left-[30%]">
+        <FloatingElement depth={1} className="absolute top-[15%] left-[40%]">
           <motion.img
             src={exampleImages[1].url} alt={exampleImages[1].title}
             className="w-40 h-28 object-cover shadow-creative shadow-foreground rounded-lg -rotate-12 opacity-70"
-             initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 0.3 }}
+            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 0.3 }}
           />
         </FloatingElement>
-         <FloatingElement depth={1.5} className="top-[10%] right-[8%]">
+        <FloatingElement depth={1.5} className="absolute top-[25%] right-[20%]">
           <motion.img
             src={exampleImages[3].url} alt={exampleImages[3].title}
             className="w-32 h-24 object-cover shadow-creative shadow-foreground rounded-lg rotate-6 opacity-70"
-             initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 0.5 }}
+            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 0.5 }}
           />
         </FloatingElement>
-         <FloatingElement depth={0.8} className="bottom-[10%] left-[15%]">
+        <FloatingElement depth={0.8} className="absolute bottom-[20%] left-[25%]">
           <motion.img
             src={exampleImages[2].url} alt={exampleImages[2].title}
             className="w-36 h-36 object-cover shadow-creative shadow-foreground rounded-lg -rotate-6 opacity-70"
-             initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 0.7 }}
+            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 0.7 }}
           />
         </FloatingElement>
-         <FloatingElement depth={1.2} className="bottom-[15%] right-[10%]">
+        <FloatingElement depth={1.2} className="absolute bottom-[25%] right-[25%]">
           <motion.img
             src={exampleImages[4].url} alt={exampleImages[4].title}
             className="w-44 h-44 object-cover shadow-creative shadow-foreground rounded-lg rotate-12 opacity-70"
-             initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 0.9 }}
+            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 0.9 }}
           />
         </FloatingElement>
-         <FloatingElement depth={0.3} className="bottom-[5%] left-[45%]">
+        <FloatingElement depth={0.3} className="absolute bottom-[15%] left-[45%]">
           <motion.img
             src={exampleImages[5].url} alt={exampleImages[5].title}
             className="w-24 h-24 object-cover shadow-creative shadow-foreground rounded-lg rotate-3 opacity-70"
-             initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 1.1 }}
+            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.7, scale: 1 }} transition={{ delay: 1.1 }}
           />
         </FloatingElement>
       </Floating>
 
-      {/* Render the OnboardingForm component, passing down props */}
-      <OnboardingForm onSubmit={onSubmit} isLoading={isLoading} error={error} />
-
+      {/* Form positioned to the right with margin */}
+      <div className="relative w-full max-w-md mx-8 md:mr-16 md:ml-auto">
+        <OnboardingForm onSubmit={onSubmit} isLoading={isLoading} error={error} />
+      </div>
     </div>
   );
 };

@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.app.json", // Inherit settings from the main app config
+  "compilerOptions": {
+    // Override specific options if needed for Storybook, but often just extending is enough
+    "emitDeclarationOnly": false, // Ensure it doesn't try to emit declarations
+    "types": ["node"] // Add base node types if needed, but avoid vite/client here
+  },
+  "include": [
+    // Ensure Storybook files themselves are included
+    "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)",
+    "./**/*", // Include preview.ts, main.ts etc.
+    "../src/vite-env.d.ts" // Explicitly include the vite env declarations
+    ],
+  "exclude": [
+    "../node_modules"
+  ]
+}

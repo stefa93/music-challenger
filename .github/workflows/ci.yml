@@ -1,0 +1,39 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x] # Use Node.js 20
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm' # Cache npm dependencies
+
+    - name: Install dependencies
+      run: npm ci # Use clean install for CI
+
+    - name: Run Biome Checks (Lint & Format)
+      run: npm run biome:check
+
+    - name: Run Unit Tests (Vitest)
+      run: npm run test:unit
+
+    - name: Run E2E Tests (Cypress)
+      run: npm run test:e2e
+      # Note: E2E tests require the dev server to be running.
+      # The 'start-server-and-test' utility handles this.

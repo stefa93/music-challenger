@@ -1,0 +1,104 @@
+import { Meta, Title } from '@storybook/blocks';
+
+<Meta title="Design System/Getting Started" />
+
+<Title>Getting Started</Title>
+
+This guide explains how to set up your development environment and use the Songer UI components in your project.
+
+## Prerequisites
+
+Ensure your project meets the following requirements:
+
+1.  **React Project:** Components are built using React.
+2.  **Tailwind CSS:** The components rely heavily on Tailwind CSS for styling. Make sure Tailwind is installed and configured in your project. Refer to the [Tailwind CSS Installation Guide](https://tailwindcss.com/docs/installation).
+3.  **`shadcn/ui` Setup:** While you'll primarily use our wrapper components, having `shadcn/ui` initialized might be beneficial for base styles and utilities. Follow the [shadcn/ui Installation Guide](https://ui.shadcn.com/docs/installation).
+
+## Installation & Setup
+
+1.  **Install Dependencies:** If components are published as a package, install it:
+    ```bash
+    npm install @songer/ui # Or yarn add @songer/ui (Replace with actual package name if applicable)
+    ```
+    If using components directly from this repository (monorepo setup), ensure paths are correctly configured.
+
+2.  **Configure Tailwind:**
+    *   Make sure your `tailwind.config.ts` includes the paths to the Songer components so Tailwind can scan their classes:
+        ```js
+        // tailwind.config.ts
+        module.exports = {
+          content: [
+            './src/**/*.{js,ts,jsx,tsx}',
+            './node_modules/@songer/ui/dist/**/*.{js,ts,jsx,tsx}', // Adjust path if needed
+            // Or path to components if in a monorepo:
+            // './path/to/poc-songer/src/components/**/*.{js,ts,jsx,tsx}',
+          ],
+          theme: {
+            extend: {
+              // Ensure your theme includes the 'Patrick Hand' font and custom shadows/borders
+              fontFamily: {
+                handwritten: ['"Patrick Hand"', 'cursive'],
+              },
+              boxShadow: {
+                 'creative-button': '2px 2px 0px 0px var(--tw-shadow-color)',
+                 'creative-button-hover': '3px 3px 0px 0px var(--tw-shadow-color)',
+                 // Add other custom shadows from the style guide if needed
+              },
+              // ... other extensions
+            },
+          },
+          plugins: [],
+        }
+        ```
+    *   Import the "Patrick Hand" font in your main CSS file (e.g., `src/index.css`):
+        ```css
+        @import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap');
+
+        @tailwind base;
+        @tailwind components;
+        @tailwind utilities;
+
+        /* Add any other global styles */
+        ```
+
+## Using Components
+
+**Wrapper Component Strategy:**
+
+The core principle is to use the **`Creative*` wrapper components** (e.g., `CreativeButton`, `CreativeInput`, `CreativeCard`) located in `src/components/` instead of directly using the base `shadcn/ui` components.
+
+These wrappers handle applying the unique "Creative Handwritten" style (font, borders, shadows, hover effects).
+
+**Example:**
+
+```tsx
+import { CreativeButton } from '@/components/CreativeButton'; // Adjust import path as needed
+import { CreativeInput } from '@/components/CreativeInput';
+import { CreativeCard } from '@/components/CreativeCard';
+
+function MyFormComponent() {
+  return (
+    <CreativeCard className="p-4 rotate-[-1deg]"> {/* Add layout/rotation classes */}
+      <h3 className="text-2xl font-handwritten mb-4">Join the Fun!</h3>
+      <CreativeInput placeholder="Your Name" className="mb-3" />
+      <CreativeButton
+        className="bg-amber-400 text-zinc-900 hover:bg-amber-300" // Apply color variants
+      >
+        Submit
+      </CreativeButton>
+    </CreativeCard>
+  );
+}
+```
+
+**Key Points:**
+
+*   Import `Creative*` components.
+*   Pass standard props (like `onClick`, `placeholder`, `children`, `variant`, `size`) as you would to the base components. The wrappers forward these props.
+*   Use standard Tailwind utility classes (`className`) for layout, spacing, rotation, and specific color overrides (like the amber background on the button example).
+
+## Dark Mode
+
+Components are designed to work with Tailwind's dark mode (`dark:` variant). Ensure your application has a mechanism to toggle the `dark` class on the `<html>` or `<body>` element.
+
+Refer to the [Tailwind Dark Mode Documentation](https://tailwindcss.com/docs/dark-mode).

@@ -1,0 +1,123 @@
+import { Meta, Title, ColorPalette, ColorItem, Typeset, IconGallery, IconItem } from '@storybook/blocks';
+import { Check, Pencil, Star, Sparkles } from 'lucide-react';
+
+<Meta title="Design System/Design Tokens" />
+
+<Title>Design Tokens</Title>
+
+This page documents the core visual elements of the Songer "Creative Handwritten" design system, derived from the main [Design Style Guide](../../docs/design-style-guide.md).
+
+## Color Palette
+
+The color palette uses Tailwind CSS utility classes. While specific hex values aren't defined in the guide, these classes represent the core colors. *Note: Hex values below are approximations based on standard Tailwind colors.*
+
+<ColorPalette>
+  <ColorItem
+    title="Primary Action/Accent"
+    subtitle="Blue (text-blue-500)"
+    colors={{ Blue: '#3b82f6' }}
+  />
+  <ColorItem
+    title="Primary CTA/Highlight"
+    subtitle="Amber (text-amber-500, bg-amber-400)"
+    colors={{ Amber: '#f59e0b' }}
+  />
+  <ColorItem
+    title="Neutral Background (Light)"
+    subtitle="White (bg-white)"
+    colors={{ White: '#ffffff' }}
+  />
+  <ColorItem
+    title="Neutral Background (Dark)"
+    subtitle="Dark Zinc (dark:bg-zinc-900)"
+    colors={{ 'Dark Zinc': '#18181b' }}
+  />
+   <ColorItem
+    title="Neutral Text/Border (Light)"
+    subtitle="Dark Zinc (text-zinc-900, border-zinc-900)"
+    colors={{ 'Dark Zinc': '#18181b' }}
+  />
+   <ColorItem
+    title="Neutral Text/Border (Dark)"
+    subtitle="White (dark:text-white, dark:border-white)"
+    colors={{ White: '#ffffff' }}
+  />
+  <ColorItem
+    title="Subtle Text"
+    subtitle="Medium Zinc (text-zinc-600, dark:text-zinc-400)"
+    colors={{ 'Medium Zinc': '#52525b' }}
+  />
+  <ColorItem
+    title="Secondary Accents (Combined)"
+    subtitle="Purple, Green, Rose (e.g., text-purple-500)"
+    colors={{ Purple: '#a855f7', Green: '#22c55e', Rose: '#f43f5e' }}
+  />
+  {/* Individual Accent Colors for Clarity */}
+   <ColorItem
+    title="Accent: Purple"
+    subtitle="text-purple-500, bg-purple-400"
+    colors={{ Purple: '#a855f7' }}
+  />
+   <ColorItem
+    title="Accent: Green"
+    subtitle="text-green-500, bg-green-400"
+    colors={{ Green: '#22c55e' }}
+  />
+   <ColorItem
+    title="Accent: Rose"
+    subtitle="text-rose-500, bg-rose-400"
+    colors={{ Rose: '#f43f5e' }}
+  />
+</ColorPalette>
+
+## Typography
+
+The primary font is "Patrick Hand" for a distinct, handwritten feel. The default system font is used sparingly for long text.
+
+<Typeset
+  fontFamily='"Patrick Hand", cursive'
+  fontSizes={['14px', '16px', '18px', '20px', '24px', '30px', '36px', '48px']}
+  fontWeight="regular"
+  sampleText="Songer makes music fun!"
+/>
+
+*   **Primary Font:** "Patrick Hand" (`font-handwritten`) - Used for headings, buttons, tags, titles, prices, list items.
+*   **Body Font:** `system-ui` - Reserved for rare cases needing maximum readability.
+*   **Emphasis:** `font-bold` is used for key info like prices and titles.
+*   **Rotation:** Subtle rotation (`rotate-[-1deg]`, `rotate-[1deg]`, etc.) is applied to enhance the hand-drawn style.
+
+## Iconography
+
+Uses `lucide-react` for clean, consistent icons. Emojis are also used decoratively.
+
+<IconGallery>
+  <IconItem name="Check"><Check /></IconItem>
+  <IconItem name="Pencil"><Pencil /></IconItem>
+  <IconItem name="Star"><Star /></IconItem>
+  <IconItem name="Sparkles"><Sparkles /></IconItem>
+  <IconItem name="Emoji Sparkles">✨</IconItem>
+  <IconItem name="Emoji Star">⭐️</IconItem>
+  <IconItem name="Emoji Pencil">✎</IconItem>
+</IconGallery>
+
+*   **Primary Set:** `lucide-react`
+*   **Usage:** Feature checks, tier indicators, etc.
+*   **Styling:** Often inherit text color or use specific colors (e.g., `text-amber-500`).
+
+## Spacing
+
+Consistent spacing is maintained using Tailwind's standard scale. Common utilities include:
+*   `gap-8`
+*   `mb-6`
+*   `space-y-3`
+*   `p-4`, `px-3`, `py-2`
+
+Refer to the [Tailwind Spacing Scale](https://tailwindcss.com/docs/customizing-spacing#default-spacing-scale) for details.
+
+## Borders & Shadows
+
+A distinct border and offset shadow style is used for interactive elements.
+
+*   **Border:** `border-2 border-zinc-900 dark:border-white`
+*   **Shadow:** Custom offset shadow `shadow-[4px_4px_0px_0px] shadow-zinc-900 dark:shadow-white` or theme extensions like `shadow-creative-button`.
+*   **Hover/Active:** Shadows and positions often change on interaction (see `CreativeButton` or `CreativeCard` stories).

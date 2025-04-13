@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "ES2022",
+    "lib": [
+      "ES2023"
+    ],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    // "allowImportingTsExtensions": true, // Conflicts with emitting JS
+    // "isolatedModules": true, // May interfere with emitting multiple files
+    "moduleDetection": "force",
+    // "noEmit": true, // Allow emitting JS files
+    "outDir": "./dist/scripts", // Specify output directory for compiled scripts
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": [
+    "vite.config.ts",
+    "scripts/**/*.ts"
+  ], // Include scripts directory
+  "types": [
+    "node"
+  ] // Move types inside the main object
+} // Keep the closing brace

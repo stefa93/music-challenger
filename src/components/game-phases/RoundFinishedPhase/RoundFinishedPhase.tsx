@@ -1,6 +1,6 @@
 import React from 'react';
 import { CreativeButton } from "@/components/CreativeButton/CreativeButton";
-import { CreativeCard, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/CreativeCard/CreativeCard"; // Use enhanced CreativeCard
+import { PhaseCard } from "@/components/PhaseCard/PhaseCard";
 import { Trophy, Star, AlertCircle, Loader2 } from 'lucide-react'; // Added icons
 import { cn } from '@/lib/utils'; // Import cn
 
@@ -50,22 +50,51 @@ export const RoundFinishedPhase: React.FC<RoundFinishedPhaseProps> = ({
 
   return (
     // Added info popover prop example (content can be customized)
-    <CreativeCard infoPopoverContent="Scores for this round are shown below. Highest score wins!">
-      <CardHeader className="text-center"> {/* Center header */}
-        <CardTitle className="font-handwritten text-3xl md:text-4xl">
+    <PhaseCard
+      infoPopoverContent="Scores for this round are shown below. Highest score wins!"
+      title={
+        <span className="font-handwritten text-3xl md:text-4xl">
           Round {currentRound} Finished!
-        </CardTitle>
-        {roundWinnerData && (
-             <CardDescription className="text-lg"> {/* System font, larger */}
-                <Trophy className="inline-block h-5 w-5 mr-1 text-amber-500" />
-                Winner: <span className="font-bold text-foreground">{getWinnerNames()}</span> with {roundWinnerData.winningScore} points!
-             </CardDescription>
-        )}
-         {!roundWinnerData && (
-             <CardDescription>Scores calculated.</CardDescription> // Fallback if no winner data
-         )}
-      </CardHeader>
-      <CardContent className="pt-4 space-y-3">
+        </span>
+      }
+      description={
+        roundWinnerData ? (
+          <span className="text-lg">
+            <Trophy className="inline-block h-5 w-5 mr-1 text-amber-500" />
+            Winner: <span className="font-bold text-foreground">{getWinnerNames()}</span> with {roundWinnerData.winningScore} points!
+          </span>
+        ) : (
+          <>Scores calculated.</>
+        )
+      }
+      footerContent={
+        <div className="flex flex-col items-start gap-2 w-full">
+          <CreativeButton
+            onClick={onStartNextRound}
+            className="w-full h-12"
+            disabled={isStartingNextRound}
+          >
+            {isStartingNextRound ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Starting...
+              </>
+            ) : (
+              "Start Next Round"
+            )}
+          </CreativeButton>
+          {startNextRoundError && (
+            <p
+              data-testid="start-next-round-error"
+              className="text-sm text-destructive flex items-center gap-1 w-full justify-center"
+              role="alert"
+            >
+              <AlertCircle className="h-4 w-4" /> {startNextRoundError}
+            </p>
+          )}
+        </div>
+      }
+    >
+      <div className="pt-4 space-y-3">
         <h3 className="font-handwritten text-xl text-center mb-2">Round Scores</h3>
         {sortedResults.length > 0 ? (
           <ul className="space-y-2">
@@ -73,57 +102,46 @@ export const RoundFinishedPhase: React.FC<RoundFinishedPhaseProps> = ({
               <li
                 key={result.playerId}
                 className={cn(
-                    "flex items-center gap-3 p-3 border rounded-md",
-                    result.isWinner ? "border-amber-400 bg-amber-50 dark:bg-amber-900/20 shadow-md" : "border-border" // Highlight winner
+                  "flex items-center gap-3 p-3 border rounded-md",
+                  result.isWinner
+                    ? "border-amber-400 bg-amber-50 dark:bg-amber-900/20 shadow-md"
+                    : "border-border"
                 )}
               >
-                {/* Optional Album Art */}
                 {result.albumArtUrl ? (
-                    <img src={result.albumArtUrl} alt="" className="h-10 w-10 rounded-sm object-cover flex-shrink-0" />
+                  <img
+                    src={result.albumArtUrl}
+                    alt=""
+                    className="h-10 w-10 rounded-sm object-cover flex-shrink-0"
+                  />
                 ) : (
-                    <div className="h-10 w-10 rounded-sm bg-muted flex items-center justify-center text-muted-foreground flex-shrink-0">?</div> // Placeholder
+                  <div className="h-10 w-10 rounded-sm bg-muted flex items-center justify-center text-muted-foreground flex-shrink-0">
+                    ?
+                  </div>
                 )}
-                {/* Song and Player Info */}
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden min-w-0">
                   <p className="font-medium truncate">{result.songName}</p>
                   <p className="text-sm text-muted-foreground truncate">{result.songArtist}</p>
-                  <p className="text-xs text-muted-foreground">Submitted by: {result.playerName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Submitted by: {result.playerName}
+                  </p>
                 </div>
-                {/* Points */}
                 <div className="flex flex-col items-center flex-shrink-0">
-                   <span className="font-handwritten text-2xl font-bold text-primary">{result.pointsAwarded}</span>
-                   <span className="text-xs text-muted-foreground">Points</span>
+                  <span className="font-handwritten text-2xl font-bold text-primary">
+                    {result.pointsAwarded}
+                  </span>
+                  <span className="text-xs text-muted-foreground">Points</span>
                 </div>
-                {/* Winner Icon */}
                 {result.isWinner && <Star className="h-5 w-5 text-amber-500 flex-shrink-0" />}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-muted-foreground text-center">No scores available for this round.</p>
+          <p className="text-muted-foreground text-center">
+            No scores available for this round.
+          </p>
         )}
-      </CardContent>
-      <CardFooter className="pt-4">
-        <div className="flex flex-col items-start gap-2 w-full">
-          {/* TODO: Add logic to check if it's the *actual* last round */}
-          <CreativeButton
-            onClick={onStartNextRound}
-            className="w-full h-12" // Make button full width
-            disabled={isStartingNextRound}
-          >
-            {isStartingNextRound ? (
-                 <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Starting...
-                 </>
-            ) : 'Start Next Round'}
-          </CreativeButton>
-          {startNextRoundError && (
-            <p data-testid="start-next-round-error" className="text-sm text-destructive flex items-center gap-1 w-full justify-center" role="alert">
-                 <AlertCircle className="h-4 w-4" /> {startNextRoundError}
-            </p>
-          )}
-        </div>
-      </CardFooter>
-    </CreativeCard>
+      </div>
+    </PhaseCard>
   );
 };

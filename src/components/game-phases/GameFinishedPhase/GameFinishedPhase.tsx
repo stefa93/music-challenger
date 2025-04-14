@@ -1,5 +1,5 @@
 import React from 'react';
-import { CreativeCard, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/CreativeCard/CreativeCard"; // Use enhanced CreativeCard
+import { PhaseCard } from "@/components/PhaseCard/PhaseCard";
 import { CreativeButton } from "@/components/CreativeButton/CreativeButton"; // Uncommented
 import { Trophy, Star } from 'lucide-react'; // Added icons
 import { cn } from '@/lib/utils'; // Import cn
@@ -44,58 +44,66 @@ export const GameFinishedPhase: React.FC<GameFinishedPhaseProps> = ({
 
 
   return (
-    <CreativeCard>
-      <CardHeader className="text-center"> {/* Center header */}
-        <CardTitle className="font-handwritten text-3xl md:text-4xl">Game Over!</CardTitle>
-        {/* Announce Winner */}
-        <CardDescription className="text-lg"> {/* System font */}
-            <Trophy className="inline-block h-5 w-5 mr-1 text-amber-500" />
-            {getWinnerAnnouncement()}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="pt-4">
+    <PhaseCard
+      title={
+        <span className="text-center w-full block">Game Over!</span>
+      }
+      description={
+        <span className="text-lg">
+          <Trophy className="inline-block h-5 w-5 mr-1 text-amber-500" />
+          {getWinnerAnnouncement()}
+        </span>
+      }
+      footerContent={
+        <div className="flex flex-col gap-2 items-center w-full">
+          <CreativeButton
+            variant="outline"
+            // onClick={onPlayAgain}
+            className="w-full max-w-xs"
+          >
+            Play Again?
+          </CreativeButton>
+          <p className="text-sm text-muted-foreground">Thank you for playing!</p>
+        </div>
+      }
+    >
+      <div className="pt-4">
         <h3 className="text-xl font-semibold mb-3 font-handwritten text-center">Final Scores:</h3>
         <ul className="space-y-1">
           {sortedPlayers.map((player, index) => {
-            const isWinner = player.score === winningScore && winningScore > 0; // Check if player is a winner
+            const isWinner = player.score === winningScore && winningScore > 0;
             return (
-                <li
-                    key={player.id}
-                    className={cn(
-                        "flex justify-between items-center gap-3 p-3 border-b last:border-b-0",
-                        isWinner ? "border-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md shadow-sm" : "border-transparent" // Highlight winner
+              <li
+                key={player.id}
+                className={cn(
+                  "flex justify-between items-center gap-3 p-3 border-b last:border-b-0",
+                  isWinner
+                    ? "border-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md shadow-sm"
+                    : "border-transparent"
+                )}
+              >
+                <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                  <span className="font-handwritten font-bold w-6 text-right text-lg text-muted-foreground">
+                    {index + 1}.
+                  </span>
+                  <span className="font-medium truncate">
+                    {player.name}{" "}
+                    {player.id === playerId ? (
+                      <span className="text-xs text-primary font-normal">(You)</span>
+                    ) : (
+                      ""
                     )}
-                >
-                    <div className="flex items-center gap-3 flex-1 overflow-hidden">
-                        {/* Rank */}
-                        <span className="font-handwritten font-bold w-6 text-right text-lg text-muted-foreground">{index + 1}.</span>
-                        {/* Name */}
-                        <span className="font-medium truncate"> {/* System font */}
-                            {player.name} {player.id === playerId ? <span className="text-xs text-primary font-normal">(You)</span> : ''}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Score */}
-                        <span className="font-semibold text-lg">{player.score}</span> {/* System font */}
-                        {/* Winner Icon */}
-                        {isWinner && <Star className="h-5 w-5 text-amber-500" />}
-                    </div>
-                </li>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="font-semibold text-lg">{player.score}</span>
+                  {isWinner && <Star className="h-5 w-5 text-amber-500" />}
+                </div>
+              </li>
             );
           })}
         </ul>
-      </CardContent>
-      <CardFooter className="pt-4 flex-col gap-2 items-center"> {/* Center footer items */}
-        {/* Uncommented Play Again button - requires onPlayAgain prop and handler */}
-        <CreativeButton
-            variant="outline"
-            // onClick={onPlayAgain} // Add handler if prop is passed
-            className="w-full max-w-xs" // Limit button width
-        >
-            Play Again?
-        </CreativeButton>
-        <p className="text-sm text-muted-foreground">Thank you for playing!</p> {/* System font */}
-      </CardFooter>
-    </CreativeCard>
+      </div>
+    </PhaseCard>
   );
 };

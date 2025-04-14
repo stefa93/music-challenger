@@ -42,11 +42,7 @@ function App() {
 
   return (
     <div className="App">
-      {/* Removed h2 title */}
-      {/* Global Loading/Error Indicators from GameContext */}
-      {isLoading && <p>Loading...</p>}
       {error && <p style={{ color: 'red' }}>Game Error: {error}</p>}
-      {/* Spotify error/loading/status will be consumed from AuthContext where needed */}
 
       <Routes>
         {/* Page components now consume context directly, no props needed here */}

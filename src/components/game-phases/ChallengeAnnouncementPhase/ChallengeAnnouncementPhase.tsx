@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CreativeButton } from "@/components/CreativeButton/CreativeButton";
-import { CreativeCard } from "@/components/CreativeCard/CreativeCard";
+import { PhaseCard } from "@/components/PhaseCard/PhaseCard";
 import { CreativeInput } from "@/components/CreativeInput/CreativeInput";
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -77,23 +77,70 @@ export const ChallengeAnnouncementPhase: React.FC<ChallengeAnnouncementPhaseProp
   const canSetChallenge = (!!customChallenge.trim() || !!selectedPredefined) && !isSettingChallenge;
 
   return (
-    <CreativeCard>
-      <CardHeader>
-        <CardTitle className="font-handwritten">
-          {challengeIsSet ? 'Challenge Announced!' : (isHost ? 'Set the Challenge' : 'Waiting for Challenge')}
-        </CardTitle>
-        <CardDescription>
-          {challengeIsSet
-            ? `The challenge for this round, set by ${roundHostName}, is:`
-            : isHost
-              ? 'As the Round Host, choose or create the challenge!'
-              : `Waiting for the Round Host (${roundHostName}) to set the challenge...`}
-        </CardDescription>
-      </CardHeader>
+    <PhaseCard
+      title={
+        challengeIsSet
+          ? "Challenge Announced!"
+          : isHost
+          ? "Set the Challenge"
+          : "Waiting for Challenge"
+      }
+      description={
+        challengeIsSet
+          ? `The challenge for this round, set by ${roundHostName}, is:`
+          : isHost
+          ? "As the Round Host, choose or create the challenge!"
+          : `Waiting for the Round Host (${roundHostName}) to set the challenge...`
+      }
+      footerContent={
+        <div className="flex flex-col items-start gap-2 w-full">
+          {/* Set Challenge Button */}
+          {isHost && !challengeIsSet && (
+            <CreativeButton
+              onClick={handleSetChallenge}
+              className="w-full h-12 bg-amber-400 text-zinc-900 hover:bg-amber-300 active:bg-amber-400"
+              disabled={!canSetChallenge}
+            >
+              {isSettingChallenge ? "Setting..." : "Set This Challenge"}
+            </CreativeButton>
+          )}
 
+          {/* Start Selection Button */}
+          {isHost && challengeIsSet && (
+            <CreativeButton
+              onClick={onStartSelectionPhase}
+              className="w-full h-12"
+              disabled={isStartingSelection}
+            >
+              {isStartingSelection ? "Starting Selection..." : "Start Song Selection"}
+            </CreativeButton>
+          )}
+
+          {/* Error Message */}
+          {startSelectionError && (
+            <p className="text-sm text-destructive" role="alert">
+              {startSelectionError}
+            </p>
+          )}
+
+          {/* Non-host Waiting Message (Challenge Set) */}
+          {!isHost && challengeIsSet && (
+            <p className="text-sm text-muted-foreground text-center w-full">
+              Waiting for host to start song selection...
+            </p>
+          )}
+          {/* Non-host Waiting Message (Challenge Not Set) */}
+          {!isHost && !challengeIsSet && (
+            <p className="text-sm text-muted-foreground text-center w-full">
+              Waiting for host to set the challenge...
+            </p>
+          )}
+        </div>
+      }
+    >
       {/* Host Controls Section */}
       {isHost && !challengeIsSet && (
-        <CardContent className="space-y-4 pt-4">
+        <div className="space-y-4 pt-4">
           {/* Custom Input */}
           <div className="space-y-1.5">
             <Label htmlFor="custom-challenge">Write your own challenge:</Label>
@@ -121,7 +168,7 @@ export const ChallengeAnnouncementPhase: React.FC<ChallengeAnnouncementPhaseProp
               onValueChange={handleSelectChange}
               disabled={isSettingChallenge || predefinedChallenges.length === 0}
             >
-              <SelectTrigger id="predefined-challenge" className="font-handwritten">
+              <SelectTrigger id="predefined-challenge" className="font-handwritten w-full">
                 <SelectValue placeholder="Select a challenge..." />
               </SelectTrigger>
               <SelectContent>
@@ -134,75 +181,36 @@ export const ChallengeAnnouncementPhase: React.FC<ChallengeAnnouncementPhaseProp
             </Select>
           </div>
 
-           {/* OR Separator */}
-           <div className="flex items-center gap-2">
+          {/* OR Separator */}
+          <div className="flex items-center gap-2">
             <hr className="flex-grow border-muted-foreground" />
             <span className="text-sm text-muted-foreground">OR</span>
             <hr className="flex-grow border-muted-foreground" />
           </div>
 
           {/* Random Button */}
-           <CreativeButton
-              onClick={handleRandomChallenge}
-              variant="outline"
-              className="w-full"
-              disabled={isSettingChallenge || predefinedChallenges.length === 0}
-            >
-              <Dice6 className="mr-2 h-4 w-4" /> Pick Random Challenge
-            </CreativeButton>
-        </CardContent> // Correct closing tag for host controls CardContent
+          <CreativeButton
+            onClick={handleRandomChallenge}
+            variant="outline"
+            className="w-full"
+            disabled={isSettingChallenge || predefinedChallenges.length === 0}
+          >
+            <Dice6 className="mr-2 h-4 w-4" /> Pick Random Challenge
+          </CreativeButton>
+        </div>
       )}
 
       {/* Announced Challenge Section */}
       {challengeIsSet && (
-        <CardContent className="space-y-3 pt-4">
+        <div className="space-y-3 pt-4">
           <p className="font-handwritten text-xl font-semibold text-center py-2">
             "{challenge}"
           </p>
           <p className="text-sm text-muted-foreground text-center">
             Round Host: <span className="font-medium text-foreground">{roundHostName}</span>
           </p>
-        </CardContent> // Correct closing tag for announced challenge CardContent
-      )}
-
-      {/* Footer Actions */}
-      <CardFooter className="pt-4">
-        <div className="flex flex-col items-start gap-2 w-full">
-          {/* Set Challenge Button */}
-          {isHost && !challengeIsSet && (
-            <CreativeButton
-              onClick={handleSetChallenge}
-              className="w-full h-12 bg-amber-400 text-zinc-900 hover:bg-amber-300 active:bg-amber-400"
-              disabled={!canSetChallenge}
-            >
-              {isSettingChallenge ? 'Setting...' : 'Set This Challenge'}
-            </CreativeButton>
-          )}
-
-          {/* Start Selection Button */}
-          {isHost && challengeIsSet && (
-            <CreativeButton
-              onClick={onStartSelectionPhase}
-              className="w-full h-12"
-              disabled={isStartingSelection}
-            >
-              {isStartingSelection ? 'Starting Selection...' : 'Start Song Selection'}
-            </CreativeButton>
-          )}
-
-          {/* Error Message */}
-          {startSelectionError && <p className="text-sm text-destructive" role="alert">{startSelectionError}</p>}
-
-          {/* Non-host Waiting Message (Challenge Set) */}
-          {!isHost && challengeIsSet && (
-             <p className="text-sm text-muted-foreground text-center w-full">Waiting for host to start song selection...</p>
-          )}
-          {/* Non-host Waiting Message (Challenge Not Set) */}
-           {!isHost && !challengeIsSet && (
-             <p className="text-sm text-muted-foreground text-center w-full">Waiting for host to set the challenge...</p>
-          )}
         </div>
-      </CardFooter>
-    </CreativeCard>
+      )}
+    </PhaseCard>
   );
 };

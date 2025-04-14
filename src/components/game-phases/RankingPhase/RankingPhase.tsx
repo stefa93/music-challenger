@@ -19,7 +19,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Loader2, AlertCircle, Timer } from 'lucide-react'; // Added Timer icon
 
 import { CreativeButton } from "@/components/CreativeButton/CreativeButton";
-import { CreativeCard, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/CreativeCard/CreativeCard"; // Use enhanced CreativeCard
+import { PhaseCard } from "@/components/PhaseCard/PhaseCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Timestamp } from 'firebase/firestore'; // Import Timestamp for prop type
@@ -216,29 +216,66 @@ export const RankingPhase: React.FC<RankingPhaseProps> = ({
   );
 
   return (
-    <CreativeCard infoPopoverContent={infoContent} infoPopoverTitle="How to Rank">
-      <CardHeader>
-        <CardTitle className="font-handwritten">Rank the Songs</CardTitle>
-        <CardDescription>
-          Drag the songs to rank them based on the challenge. #1 is best!
-        </CardDescription>
-        {/* Timer Display */}
-        {formattedTime && (
-            <div className={`absolute top-4 right-4 flex items-center gap-1 px-2 py-1 rounded-full text-sm font-semibold font-handwritten border-2 border-foreground shadow-sm ${isTimeUp ? 'text-destructive border-destructive animate-pulse' : 'text-primary border-primary'}`}>
-                <Timer className="h-4 w-4" />
-                {formattedTime}
-            </div>
-        )}
-      </CardHeader>
-      <CardContent className="pt-4 space-y-4">
+    <PhaseCard
+      title="Rank the Songs"
+      description="Drag the songs to rank them based on the challenge. #1 is best!"
+      infoPopoverContent={infoContent}
+      infoPopoverTitle="How to Rank"
+      timerDisplay={
+        formattedTime && (
+          <div
+            className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm font-semibold font-handwritten border-2 border-foreground shadow-sm ${
+              isTimeUp
+                ? "text-destructive border-destructive animate-pulse"
+                : "text-primary border-primary"
+            }`}
+            data-testid="ranking-timer"
+          >
+            <Timer className="h-4 w-4" />
+            {formattedTime}
+          </div>
+        )
+      }
+      footerContent={
+        numSongsToRank > 0 && (
+          <div className="flex flex-col items-start gap-2 w-full">
+            <CreativeButton
+              onClick={handleSubmit}
+              className="w-full h-12"
+              disabled={isSubmittingRanking || hasSubmittedRanking || isTimeUp}
+            >
+              {isSubmittingRanking ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...
+                </>
+              ) : hasSubmittedRanking ? (
+                "Waiting for others..."
+              ) : (
+                "Submit Rankings"
+              )}
+            </CreativeButton>
+            {rankingError && (
+              <p
+                data-testid="ranking-error"
+                className="text-sm text-destructive flex items-center gap-1 w-full justify-center"
+                role="alert"
+              >
+                <AlertCircle className="h-4 w-4" /> {rankingError}
+              </p>
+            )}
+          </div>
+        )
+      }
+    >
+      <div className="pt-4 space-y-4">
         {numSongsToRank > 0 ? (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragEnd={isTimeUp ? undefined : handleDragEnd} // Disable drag if time is up
+            onDragEnd={isTimeUp ? undefined : handleDragEnd}
           >
             <SortableContext
-              items={rankedSongs.map(item => item.id)}
+              items={rankedSongs.map((item) => item.id)}
               strategy={verticalListSortingStrategy}
             >
               <ul className="space-y-2">
@@ -250,49 +287,31 @@ export const RankingPhase: React.FC<RankingPhaseProps> = ({
           </DndContext>
         ) : (
           <p className="text-muted-foreground text-center font-handwritten">
-            {Object.keys(playerSongs).length <= 1 ? "Not enough songs submitted to rank." : "Waiting for other submissions..."}
+            {Object.keys(playerSongs).length <= 1
+              ? "Not enough songs submitted to rank."
+              : "Waiting for other submissions..."}
           </p>
         )}
 
         {/* Display Own Song */}
         {ownSongEntry && (
-           <div className="border-t border-border pt-4 mt-4 space-y-2">
-             <p className="text-sm text-muted-foreground font-handwritten">Your submission (not ranked):</p>
-             <div className="flex items-center gap-3 p-3 rounded-md border border-dashed border-muted bg-muted/50">
-                {/* Add album art here if available in ownSongEntry[1] */}
-                <div className="flex-1 overflow-hidden">
-                    <p className="font-medium truncate">{ownSongEntry[1].name}</p>
-                    <p className="text-sm text-muted-foreground truncate">{ownSongEntry[1].artist}</p>
-                </div>
-             </div>
+          <div className="border-t border-border pt-4 mt-4 space-y-2">
+            <p className="text-sm text-muted-foreground font-handwritten">
+              Your submission (not ranked):
+            </p>
+            <div className="flex items-center gap-3 p-3 rounded-md border border-dashed border-muted bg-muted/50">
+              {/* Add album art here if available in ownSongEntry[1] */}
+              <div className="flex-1 overflow-hidden">
+                <p className="font-medium truncate">{ownSongEntry[1].name}</p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {ownSongEntry[1].artist}
+                </p>
+              </div>
+            </div>
           </div>
         )}
-
-      </CardContent>
-      {/* Footer only shown if there are songs to rank */}
-      {numSongsToRank > 0 && (
-        <CardFooter className="pt-4">
-          <div className="flex flex-col items-start gap-2 w-full">
-            <CreativeButton
-              onClick={handleSubmit}
-              className="w-full h-12" // Make button full width
-              disabled={isSubmittingRanking || hasSubmittedRanking || isTimeUp} // Disable if time is up
-            >
-              {isSubmittingRanking ? (
-                  <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...
-                  </>
-              ) : (hasSubmittedRanking ? 'Waiting for others...' : 'Submit Rankings')}
-            </CreativeButton>
-            {rankingError && (
-                <p data-testid="ranking-error" className="text-sm text-destructive flex items-center gap-1 w-full justify-center" role="alert">
-                    <AlertCircle className="h-4 w-4" /> {rankingError}
-                </p>
-            )}
-          </div>
-        </CardFooter>
-      )}
-    </CreativeCard>
+      </div>
+    </PhaseCard>
   );
 };
 

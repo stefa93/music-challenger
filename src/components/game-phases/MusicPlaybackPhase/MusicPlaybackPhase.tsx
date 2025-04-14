@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { CreativeButton } from "@/components/CreativeButton/CreativeButton";
-import { CreativeCard } from "@/components/CreativeCard/CreativeCard";
-import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { PhaseCard } from "@/components/PhaseCard/PhaseCard";
 import { MusicTrack } from '@/types/music'; // Changed import path and type name
 import { Play, Pause, SkipForward, SkipBack, Music, Loader2, AlertCircle } from 'lucide-react';
 import logger from '@/lib/logger';
@@ -140,16 +139,38 @@ export const MusicPlaybackPhase: React.FC<MusicPlaybackPhaseProps> = ({
 
 
   return (
-    <CreativeCard>
-      <CardHeader>
-        <CardTitle className="font-handwritten">Listen Together</CardTitle>
-        <CardDescription>
+    <PhaseCard
+      title="Listen Together"
+      description={
+        <>
           The host controls the playback. Listen to the 30s previews for round {currentRound}.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 pt-4">
+        </>
+      }
+      footerContent={
+        <>
+          {isHost && (
+            <CreativeButton
+              onClick={handleStartRanking}
+              className="w-full"
+              disabled={isStartingRanking || submittedSongs.length === 0}
+            >
+              {isStartingRanking ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Start Ranking Phase"
+              )}
+            </CreativeButton>
+          )}
+          {startRankingError && (
+            <p className="text-sm text-destructive text-center flex items-center justify-center gap-1 mt-2" role="alert">
+              <AlertCircle className="h-4 w-4" /> {startRankingError}
+            </p>
+          )}
+        </>
+      }
+    >
+      <div className="space-y-4 pt-4">
         {/* Hidden Audio Player */}
-        {/* Add crossOrigin="anonymous" if needed for specific audio sources/CORS */}
         <audio ref={audioRef} onEnded={handleAudioEnded} onPause={handleAudioPause} onPlay={handleAudioPlay} />
 
         {/* Currently Playing Info */}
@@ -157,7 +178,11 @@ export const MusicPlaybackPhase: React.FC<MusicPlaybackPhaseProps> = ({
           {/* Album Art */}
           {currentTrack ? (
             currentTrack.albumImageUrl ? (
-              <img src={currentTrack.albumImageUrl} alt={`Album art for ${currentTrack.name}`} className="h-16 w-16 rounded-md object-cover flex-shrink-0" />
+              <img
+                src={currentTrack.albumImageUrl}
+                alt={`Album art for ${currentTrack.name}`}
+                className="h-16 w-16 rounded-md object-cover flex-shrink-0"
+              />
             ) : (
               <div className="h-16 w-16 rounded-md bg-secondary flex items-center justify-center text-muted-foreground flex-shrink-0">
                 <Music size={24} />
@@ -174,12 +199,11 @@ export const MusicPlaybackPhase: React.FC<MusicPlaybackPhaseProps> = ({
               <>
                 <p className="text-lg font-semibold font-handwritten truncate max-w-full">{currentTrack.name}</p>
                 <p className="text-sm text-muted-foreground truncate max-w-full">{currentTrack.artistName}</p>
-                {!currentTrack.previewUrl && ( // Use previewUrl from MusicTrack
+                {!currentTrack.previewUrl && (
                   <p className="text-xs text-destructive mt-1">(Preview unavailable)</p>
                 )}
-                {/* Indicate playback status */}
-                <p className={`text-xs mt-1 font-medium ${isPlayingSynced ? 'text-green-600' : 'text-muted-foreground'}`}>
-                  {isPlayingSynced ? 'Playing...' : 'Paused'}
+                <p className={`text-xs mt-1 font-medium ${isPlayingSynced ? "text-green-600" : "text-muted-foreground"}`}>
+                  {isPlayingSynced ? "Playing..." : "Paused"}
                 </p>
               </>
             ) : (
@@ -190,56 +214,51 @@ export const MusicPlaybackPhase: React.FC<MusicPlaybackPhaseProps> = ({
 
         {/* Playback Controls (Host Only) */}
         {isHost && submittedSongs.length > 0 && (
-          <div className="flex justify-center items-center gap-4 mt-4">
-            <CreativeButton onClick={() => handleHostControl('prev')} variant="outline" size="icon" aria-label="Previous track" disabled={!!loadingAction}>
+          <div className="flex justify-center items-center gap-2 sm:gap-4 mt-4">
+            <CreativeButton
+              onClick={() => handleHostControl("prev")}
+              variant="outline"
+              size="icon"
+              aria-label="Previous track"
+              disabled={!!loadingAction}
+            >
               <SkipBack className="h-5 w-5" />
             </CreativeButton>
             <CreativeButton
-              onClick={() => handleHostControl(isPlayingSynced ? 'pause' : 'play')}
+              onClick={() => handleHostControl(isPlayingSynced ? "pause" : "play")}
               variant="outline"
               size="icon"
               aria-label={isPlayingSynced ? "Pause track" : "Play track"}
-              disabled={!currentTrack?.previewUrl || !!loadingAction} // Disable if no preview or any action loading
+              disabled={!currentTrack?.previewUrl || !!loadingAction}
             >
-              {/* Show loader specifically for play/pause actions */}
-              {(loadingAction === 'play' || loadingAction === 'pause') ? <Loader2 className="h-6 w-6 animate-spin" /> : (isPlayingSynced ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />)}
+              {(loadingAction === "play" || loadingAction === "pause") ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : isPlayingSynced ? (
+                <Pause className="h-6 w-6" />
+              ) : (
+                <Play className="h-6 w-6" />
+              )}
             </CreativeButton>
-            <CreativeButton onClick={() => handleHostControl('next')} variant="outline" size="icon" aria-label="Next track" disabled={!!loadingAction}>
+            <CreativeButton
+              onClick={() => handleHostControl("next")}
+              variant="outline"
+              size="icon"
+              aria-label="Next track"
+              disabled={!!loadingAction}
+            >
               <SkipForward className="h-5 w-5" />
             </CreativeButton>
           </div>
         )}
-        {/* Display Control Error */}
         {controlError && (
           <p className="text-sm text-destructive text-center flex items-center justify-center gap-1" role="alert">
             <AlertCircle className="h-4 w-4" /> {controlError}
           </p>
         )}
-
-        {/* Non-Host Message */}
         {!isHost && (
           <p className="text-sm text-muted-foreground text-center">Waiting for the host to control playback...</p>
         )}
-
-      </CardContent>
-      <CardFooter>
-        {/* Start Ranking Button (Host Only) */}
-        {isHost && (
-          <CreativeButton
-            onClick={handleStartRanking}
-            className="w-full"
-            disabled={isStartingRanking || submittedSongs.length === 0}
-          >
-            {isStartingRanking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Start Ranking Phase'}
-          </CreativeButton>
-        )}
-        {/* Display Start Ranking Error */}
-        {startRankingError && (
-          <p className="text-sm text-destructive text-center flex items-center justify-center gap-1 mt-2" role="alert">
-            <AlertCircle className="h-4 w-4" /> {startRankingError}
-          </p>
-        )}
-      </CardFooter>
-    </CreativeCard>
+      </div>
+    </PhaseCard>
   );
 };

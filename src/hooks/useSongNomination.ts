@@ -65,8 +65,9 @@ export const useSongNomination = ({
       // Omit frontend-only fields like submittedAt, selectionSource
       // Destructure, removing the newly added optional 'selectionSource'
       // 'submittedAt' was already correctly absent from the frontend MusicTrack type
-      const { selectionSource: src, ...searchResultData } = selectedTrack;
-      nominationPayload = { searchResult: searchResultData };
+      const { selectionSource: src, artistName, ...rest } = selectedTrack;
+      // Map artistName to artist for backend compatibility
+      nominationPayload = { searchResult: { ...rest, artist: artistName } };
       logger.debug(`[${traceId}] Submitting search result track: ${selectedTrack.name}`);
     } else {
       // This case should ideally not be reached due to the check at the start

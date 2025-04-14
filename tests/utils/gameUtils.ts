@@ -173,14 +173,15 @@ export async function nominateSong(page: Page, searchTerm: string, expectedSongN
 // --- NEW API HELPERS ---
 
 /**
- * Nominates a song using a direct API call.
+ * Nominates a song using a direct API call, supporting both search results and predefined tracks.
  * @param request The Playwright APIRequestContext object.
  * @param gameId The ID of the game.
  * @param playerId The ID of the player nominating.
- * @param songName The name/details of the song being nominated.
+ * @param nominationInput An object containing either `searchResult` (with trackId, name, artist, previewUrl) or `predefinedTrackId`.
  */
-export async function nominateSongViaApi(request: APIRequestContext, gameId: string, playerId: string, songName: string) {
-  console.log(`Nominating song "${songName}" for player ${playerId} in game ${gameId} via API...`);
+export async function nominateSongViaApi(request: APIRequestContext, gameId: string, playerId: string, nominationInput: { searchResult: { trackId: string; name: string; artist: string; previewUrl?: string; } } | { predefinedTrackId: string }) {
+  const logDetails = 'searchResult' in nominationInput ? nominationInput.searchResult.name : `Predefined ID: ${nominationInput.predefinedTrackId}`;
+  console.log(`Nominating song "${logDetails}" for player ${playerId} in game ${gameId} via API...`);
   const functionUrl = process.env.FIREBASE_FUNCTION_URL_NOMINATE || 'http://localhost:5001/dance-floor-ranking/us-central1/submitSongNomination';
 
   const response = await request.post(functionUrl, {
@@ -188,8 +189,7 @@ export async function nominateSongViaApi(request: APIRequestContext, gameId: str
       data: {
         gameId: gameId,
         playerId: playerId,
-        songName: songName // Assuming the function accepts a simple name for now
-        // If using track details, might need trackId, artist, etc.
+        nominationPayload: nominationInput // Pass the structured payload
       }
     }
   });

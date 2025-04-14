@@ -309,15 +309,18 @@ const GameView: React.FC<GameViewProps> = ({ gameData, playersData, playerId, ga
           searchError={searchError} // from useMusicSearch
           isSubmittingNomination={isSubmittingNomination} // from useSongNomination
           nominationError={nominationError} // from useSongNomination
-          isSearchPopoverOpen={isSearchPopoverOpen} // from useMusicSearch
+          // isSearchPopoverOpen prop removed from SelectionPhase
           onSearchChange={handleSearchChange} // from useMusicSearch
           onSelectTrack={handleSelectTrack} // from useSongNomination
           onSongSubmit={handleSongSubmit} // from useSongNomination
-          setIsSearchPopoverOpen={setIsSearchPopoverOpen} // from useMusicSearch
+          // setIsSearchPopoverOpen prop removed from SelectionPhase
           // Pass relevant settings and round data for timer
           timeLimit={gameData.settings?.selectionTimeLimit ?? null}
           startTime={roundData?.selectionStartTime ?? null}
           predefinedSongs={currentChallengeSongs} // Pass the fetched songs
+          // --- Add missing props ---
+          playerId={playerId}
+          playerSongs={roundData?.playerSongs}
         />
       )}
 

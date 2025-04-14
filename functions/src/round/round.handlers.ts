@@ -95,7 +95,7 @@ export const submitSongNomination = onCall(async (request) => {
   const traceId = request.data?.traceId || generateTraceId(functionName);
   logger.info(`[${traceId}] ${functionName} triggered.`, { data: request.data, auth: request.auth });
 
-  const { gameId, playerId, trackDetails } = request.data || {};
+  const { gameId, playerId, nominationPayload } = request.data || {}; // Changed trackDetails to nominationPayload
   // Optional: Validate caller UID matches playerId if auth is implemented
 
   // --- Input Validation ---
@@ -107,19 +107,36 @@ export const submitSongNomination = onCall(async (request) => {
       logger.error(`[${traceId}] Invalid input: Player ID missing or not a string.`);
       throw new HttpsError("invalid-argument", "Player ID is required and must be a string.");
   }
-  // Adjusted validation for generic track details
-  if (!trackDetails || typeof trackDetails !== 'object' ||
-      !trackDetails.trackId || typeof trackDetails.trackId !== 'string' || // Check trackId
-      !trackDetails.name || typeof trackDetails.name !== 'string' ||
-      !trackDetails.artist || typeof trackDetails.artist !== 'string') {
-      logger.error(`[${traceId}] Invalid input: Track details missing or invalid structure.`, { trackDetails });
-      throw new HttpsError("invalid-argument", "Valid track details (trackId, name, artist) are required.");
+  // --- Updated Validation for SongNominationInput ---
+  if (!nominationPayload || typeof nominationPayload !== 'object') {
+      logger.error(`[${traceId}] Invalid input: nominationPayload missing or not an object.`);
+      throw new HttpsError("invalid-argument", "Nomination payload is required.");
+  }
+
+  if ('searchResult' in nominationPayload) {
+      const { searchResult } = nominationPayload;
+      if (!searchResult || typeof searchResult !== 'object' ||
+          !searchResult.trackId || typeof searchResult.trackId !== 'string' ||
+          !searchResult.name || typeof searchResult.name !== 'string' ||
+          !searchResult.artist || typeof searchResult.artist !== 'string') {
+          logger.error(`[${traceId}] Invalid input: Search result track details missing or invalid structure.`, { searchResult });
+          throw new HttpsError("invalid-argument", "Valid search result track details (trackId, name, artist) are required.");
+      }
+  } else if ('predefinedTrackId' in nominationPayload) {
+      const { predefinedTrackId } = nominationPayload;
+      if (!predefinedTrackId || typeof predefinedTrackId !== 'string') {
+          logger.error(`[${traceId}] Invalid input: Predefined track ID missing or not a string.`, { predefinedTrackId });
+          throw new HttpsError("invalid-argument", "Valid predefined track ID is required.");
+      }
+  } else {
+      logger.error(`[${traceId}] Invalid input: nominationPayload has invalid structure.`, { nominationPayload });
+      throw new HttpsError("invalid-argument", "Nomination payload must contain either 'searchResult' or 'predefinedTrackId'.");
   }
   // --- End Input Validation ---
 
   return handleServiceCall(traceId, async () => {
     // We need to create submitSongNominationService in roundService.ts
-    await submitSongNominationService(gameId, playerId, trackDetails, traceId);
+    await submitSongNominationService(gameId, playerId, nominationPayload, traceId); // Pass nominationPayload
     logger.info(`[${traceId}] ${functionName} completed successfully for game ${gameId}, player ${playerId}.`);
     return { success: true, message: "Song nominated successfully." };
   });

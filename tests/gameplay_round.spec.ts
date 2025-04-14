@@ -110,7 +110,16 @@ test.describe('Gameplay Round Flow E2E Test', () => {
       await expect(page.getByPlaceholder(/Enter song title and artist/i)).toHaveValue('', { timeout: 5000 });
 
       // Joiner nominates via API
-      await nominateSongViaApi(request, gameId, joinerPlayerId, joinerSong);
+      // Construct mock search result payload for API call
+      const joinerNominationPayload = {
+        searchResult: {
+          trackId: `test-track-id-${joinerName}`, // Mock ID
+          name: 'Take On Me', // Extract from joinerSong
+          artist: 'a-ha', // Extract from joinerSong
+          previewUrl: 'https://example.com/preview/takeonme' // Mock preview URL
+        }
+      };
+      await nominateSongViaApi(request, gameId, joinerPlayerId, joinerNominationPayload);
     });
 
     // --- Discussion Phase ---
@@ -169,7 +178,16 @@ test.describe('Gameplay Round Flow E2E Test', () => {
        await expect(page.getByPlaceholder(/Enter song title and artist/i)).toHaveValue('', { timeout: 5000 });
 
       // Joiner nominates via API
-      await nominateSongViaApi(request, gameId, joinerPlayerId, joinerSong);
+      // Construct mock search result payload for API call
+      const joinerNominationPayloadRanking = {
+        searchResult: {
+          trackId: `test-track-id-ranking-${joinerName}`, // Mock ID
+          name: 'Joiner Song For Ranking Test', // Extract from joinerSong
+          artist: 'Test Artist', // Mock artist
+          previewUrl: 'https://example.com/preview/joiner-ranking' // Mock preview URL
+        }
+      };
+      await nominateSongViaApi(request, gameId, joinerPlayerId, joinerNominationPayloadRanking);
 
       // Wait for state transition to ranking
       await expect(page.locator('p:has-text("Status: round1_ranking")')).toBeVisible({ timeout: 20000 });
@@ -197,7 +215,13 @@ test.describe('Gameplay Round Flow E2E Test', () => {
 
       // Joiner ranks Creator's song via API
       // Joiner gives rank 1 to creator's song
-      const joinerRankings = { [creatorSong]: 1 }; // Assuming song title is the key
+      // Assuming the key for ranking is the trackId from the nomination
+      const creatorTrackId = `test-track-id-${creatorName}`; // Need to define this based on creator's nomination if possible, or mock consistently
+      // For now, let's assume the creator's UI nomination resulted in a known mock ID or we use the name as fallback key if ID isn't available
+      // If the UI nomination doesn't expose the trackId easily, we might need to adjust the ranking key strategy or test setup.
+      // Let's use the song name as the key for now, assuming the backend handles mapping it if needed.
+      // TODO: Refine ranking key strategy if backend requires trackId strictly.
+      const joinerRankings = { [creatorSong]: 1 }; // Using song name as key for now
       await submitRankingViaApi(request, gameId, joinerPlayerId, joinerRankings);
 
       // Add assertion: Wait for status update to scoring or round finished
@@ -246,7 +270,16 @@ test.describe('Gameplay Round Flow E2E Test', () => {
        await expect(page.getByPlaceholder(/Enter song title and artist/i)).toHaveValue('', { timeout: 10000 });
 
       // Joiner nominates via API
-      await nominateSongViaApi(request, gameId, joinerPlayerId, joinerSong);
+      // Construct mock search result payload for API call
+      const joinerNominationPayloadScoring = {
+        searchResult: {
+          trackId: `test-track-id-scoring-${joinerName}`, // Mock ID
+          name: 'Joiner Song For Scoring Test', // Extract from joinerSong
+          artist: 'Test Artist', // Mock artist
+          previewUrl: 'https://example.com/preview/joiner-scoring' // Mock preview URL
+        }
+      };
+      await nominateSongViaApi(request, gameId, joinerPlayerId, joinerNominationPayloadScoring);
 
       // Wait for state transition to ranking
       await expect(page.locator('p:has-text("Status: round1_ranking")')).toBeVisible({ timeout: 20000 });
@@ -264,6 +297,8 @@ test.describe('Gameplay Round Flow E2E Test', () => {
       // We will rely on the subsequent API call and status check.
 
       // Joiner ranks Creator's song via API (Rank 1)
+      // Using song name as key for ranking for now (see previous comment)
+      // TODO: Refine ranking key strategy if backend requires trackId strictly.
       const joinerRankings = { [creatorSong]: 1 };
       await submitRankingViaApi(request, gameId, joinerPlayerId, joinerRankings);
 

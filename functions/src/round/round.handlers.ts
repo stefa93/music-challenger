@@ -188,7 +188,7 @@ export const setChallenge = onCall(async (request) => {
   return handleServiceCall(traceId, async () => {
     // Authorization and service call are handled within setChallengeService
     // Pass playerId for host verification in the service (TEMPORARY)
-    await setChallengeService(gameId, roundId, playerId, challenge, traceId);
+    await setChallengeService(gameId, playerId, challenge, traceId);
     logger.info(`[${traceId}] ${functionName} completed successfully for game ${gameId}, round ${roundId}.`);
     return { success: true, message: "Challenge set successfully." };
   });
@@ -218,7 +218,8 @@ export const startRankingPhase = onCall(async (request) => {
 
   return handleServiceCall(traceId, async () => {
     // Authorization (is caller the host?) is handled within startRankingPhaseService
-    await startRankingPhaseService(gameId, playerId, traceId); // Pass playerId instead of callerUid
+    // Correct argument order: gameId, traceId, playerId
+    await startRankingPhaseService(gameId, traceId, playerId);
     logger.info(`[${traceId}] ${functionName} completed successfully for game ${gameId}.`);
     return { success: true, message: "Ranking phase started." };
   });
@@ -257,8 +258,8 @@ export const controlPlayback = onCall(async (request) => {
   // targetIndex validation happens in service
 
   return handleServiceCall(traceId, async () => {
-    // Authorization (is caller the host?) and action validation handled within controlPlaybackService
-    // Cast action to the specific literal type after validation
+    // Authorization (is caller the host?) handled within controlPlaybackService
+    // Pass all validated actions ('play', 'pause', 'next', 'prev', 'seekToIndex') to the service
     await controlPlaybackService(gameId, playerId, action as PlaybackAction, targetIndex, traceId); // Pass playerId instead of callerUid
     logger.info(`[${traceId}] ${functionName} completed successfully for game ${gameId}, action ${action}.`);
     return { success: true, message: "Playback controlled successfully." };

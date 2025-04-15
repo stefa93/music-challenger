@@ -61,12 +61,13 @@ export const LobbyPhase: React.FC<LobbyPhaseProps> = ({
   }, []);
 
   const handleShare = async () => {
-    const shareUrl = gameUrl || window.location.href; // Use state or fallback
-    const shareText = `Join my Songer game! ID: ${gameId}`;
+    // Construct the specific join URL
+    const joinUrl = `${window.location.origin}/join?gameId=${gameId}`;
+    const shareText = `Join my Songer game!`; // Text can be simpler now URL has ID
     const shareData = {
       title: 'Songer Game Invite',
       text: shareText,
-      url: shareUrl,
+      url: joinUrl, // Use the specific join URL
     };
 
     setShareStatus('idle'); // Reset status
@@ -74,7 +75,7 @@ export const LobbyPhase: React.FC<LobbyPhaseProps> = ({
     if (navigator.share) {
       try {
         await navigator.share(shareData);
-        logger.info(`[LobbyPhase] Game link shared successfully via Web Share API: ${shareUrl}`);
+        logger.info(`[LobbyPhase] Game link shared successfully via Web Share API: ${joinUrl}`);
         setShareStatus('shared');
       } catch (err) {
         // Handle specific errors like AbortError if needed
@@ -88,8 +89,9 @@ export const LobbyPhase: React.FC<LobbyPhaseProps> = ({
       }
     } else if (navigator.clipboard && gameId) {
       try {
-        await navigator.clipboard.writeText(gameId);
-        logger.info(`[LobbyPhase] Game ID copied to clipboard: ${gameId}`);
+        // Copy the full join URL instead of just the ID
+        await navigator.clipboard.writeText(joinUrl);
+        logger.info(`[LobbyPhase] Game join URL copied to clipboard: ${joinUrl}`);
         setShareStatus('copied');
       } catch (err) {
         logger.error('[LobbyPhase] Error copying Game ID to clipboard:', err);
@@ -133,7 +135,7 @@ export const LobbyPhase: React.FC<LobbyPhaseProps> = ({
             <p className="font-handwritten text-muted-foreground text-sm">Scan to Join!</p>
             <div className="p-2 bg-white border-2 border-foreground shadow-[4px_4px_0px_0px] shadow-foreground rounded-lg">
               <QRCodeSVG
-                value={gameUrl}
+                value={`${window.location.origin}/join?gameId=${gameId}`}
                 size={100}
                 bgColor={"#ffffff"}
                 fgColor={"#000000"}
@@ -152,7 +154,7 @@ export const LobbyPhase: React.FC<LobbyPhaseProps> = ({
               className="bg-blue-500 text-white hover:bg-blue-600 dark:hover:bg-blue-400 px-3 py-1 text-sm"
               onClick={handleShare}
               disabled={shareStatus !== "idle"}
-              aria-label={typeof navigator.share === "function" ? "Share game link" : "Copy game ID"}
+              aria-label={typeof navigator.share === "function" ? "Share game link" : "Copy game link"}
             >
               {shareStatus === "copied" ? (
                 <>
@@ -170,7 +172,7 @@ export const LobbyPhase: React.FC<LobbyPhaseProps> = ({
                 </>
               ) : (
                 <>
-                  <Copy className="mr-1 h-3 w-3" /> Copy ID
+                  <Copy className="mr-1 h-3 w-3" /> Copy Link
                 </>
               )}
             </CreativeButton>

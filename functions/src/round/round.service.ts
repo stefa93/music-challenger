@@ -1,14 +1,15 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import { db } from "../core/firestoreClient"; // Adjusted path
-import { FieldValue } from 'firebase-admin/firestore'; // Import FieldValue directly
+import { db } from "../core/firestoreClient";
+import { FieldValue, Timestamp } from 'firebase-admin/firestore'; // Import Timestamp directly
+import { getMusicProvider } from "../music/music.service";
 import * as gameData from "../game/game.data"; // Adjusted path
 import * as playerData from "../player/player.data"; // Adjusted path
 import * as roundData from "./round.data";
 import * as challengeData from "../challenge/challenge.data"; // Added challenge DAL
 import { GameStatus, Game } from "../game/types";
 import { TraceId } from "../core/types";
-import { PlayerSongSubmission, RoundDocument, RoundUpdateData, SongNominationInput } from "./types"; // Added SongNominationInput
+import { PlayerSongSubmission, RoundUpdateData, SongNominationInput } from "./types"; // Added SongNominationInput
 // Removed unused PredefinedSong import from "../challenge/types"
 
 /**
@@ -121,13 +122,13 @@ export async function submitRankingService(
 
     logger.info(`[${traceId}] Service: Player ${playerId} successfully submitted rankings for game ${gameId}.`);
 
-  } catch (error) {
-    logger.error(`[${traceId}] Service Error: submitRankingService failed for player ${playerId} in game ${gameId}:`, { error });
-    if (error instanceof HttpsError) {
-      throw error; // Re-throw HttpsErrors directly
+  } catch (caughtError) { // Use a different variable name
+    logger.error(`[${traceId}] Service Error: submitRankingService failed for player ${playerId} in game ${gameId}:`, { error: caughtError });
+    if (caughtError instanceof HttpsError) {
+      throw caughtError; // Re-throw HttpsErrors directly
     }
     // Wrap other errors
-    throw new HttpsError("internal", "An unexpected error occurred while submitting rankings.", { originalError: error instanceof Error ? error.message : String(error) });
+    throw new HttpsError("internal", "An unexpected error occurred while submitting rankings.", { originalError: caughtError instanceof Error ? caughtError.message : String(caughtError) });
   }
 }
 
@@ -249,13 +250,13 @@ export async function startNextRoundService(
 
     logger.info(`[${traceId}] Service: Successfully started next round for game ${gameId}.`);
 
-  } catch (error) {
-    logger.error(`[${traceId}] Service Error: startNextRoundService failed for game ${gameId}:`, { error });
-    if (error instanceof HttpsError) {
-      throw error; // Re-throw HttpsErrors directly
+  } catch (caughtError) { // Use a different variable name
+    logger.error(`[${traceId}] Service Error: startNextRoundService failed for game ${gameId}:`, { error: caughtError });
+    if (caughtError instanceof HttpsError) {
+      throw caughtError; // Re-throw HttpsErrors directly
     }
     // Wrap other errors
-    throw new HttpsError("internal", "An unexpected error occurred while starting the next round.", { originalError: error instanceof Error ? error.message : String(error) });
+    throw new HttpsError("internal", "An unexpected error occurred while starting the next round.", { originalError: caughtError instanceof Error ? caughtError.message : String(caughtError) });
   }
 }
 
@@ -351,34 +352,34 @@ export async function startSelectionPhaseService(
 
     }); // --- End Transaction ---
 
-  } catch (error) {
-    logger.error(`[${traceId}] Service Error: startSelectionPhaseService failed for game ${gameId}:`, { error });
-    if (error instanceof HttpsError) {
-      throw error; // Re-throw HttpsErrors directly
+  } catch (caughtError) { // Use a different variable name
+    logger.error(`[${traceId}] Service Error: startSelectionPhaseService failed for game ${gameId}:`, { error: caughtError });
+    if (caughtError instanceof HttpsError) {
+      throw caughtError; // Re-throw HttpsErrors directly
     }
     // Wrap other errors
-    throw new HttpsError("internal", "An unexpected error occurred while starting the selection phase.", { originalError: error instanceof Error ? error.message : String(error) });
+    throw new HttpsError("internal", "An unexpected error occurred while starting the selection phase.", { originalError: caughtError instanceof Error ? caughtError.message : String(caughtError) });
   }
 }
 
 /**
- * Submits a player's song nomination for the current round using Spotify track details.
+ * Submits a player's song nomination for the current round.
  * Contains the core business logic for song nomination.
  * @param gameId The ID of the game.
  * @param playerId The ID of the player submitting the song.
- * @param trackDetails An object containing spotifyTrackId, name, and artist.
+ * @param nominationInput An object containing either searchResult or predefinedTrackId.
  * @param traceId For logging purposes.
  * @throws HttpsError for validation errors, game/round state issues, or internal problems.
  */
 export async function submitSongNominationService(
   gameId: string,
   playerId: string,
-  nominationInput: SongNominationInput, // Changed parameter name and type
+  nominationInput: SongNominationInput,
   traceId: TraceId
 ): Promise<void> {
   logger.info(`[${traceId}] Service: submitSongNominationService called.`, { gameId, playerId, nominationInput });
 
-  // --- Input Validation (basic, handler does more detailed structure check) ---
+  // --- Input Validation ---
   if (!gameId || typeof gameId !== "string") {
     throw new HttpsError("invalid-argument", "Game ID is required.");
   }
@@ -441,13 +442,22 @@ export async function submitSongNominationService(
 
       if ('searchResult' in nominationInput) {
         logger.debug(`[${traceId}] Processing search result nomination.`);
-        submissionData = nominationInput.searchResult;
-        // Ensure previewUrl is present if provided from search
-        if (!submissionData.previewUrl) {
-           logger.warn(`[${traceId}] Nomination from search result is missing previewUrl.`, { trackId: submissionData.trackId });
-           // Decide if this should be an error or just a warning
-           // throw new HttpsError("invalid-argument", "Selected track from search is missing a preview URL.");
+        // Ensure the required fields are present, INCLUDING previewUrl
+        const { trackId, name, artist, previewUrl, albumImageUrl } = nominationInput.searchResult;
+        if (!trackId || !name || !artist) {
+            throw new HttpsError("invalid-argument", "Search result nomination is missing required fields (trackId, name, artist).");
         }
+        if (!previewUrl) { // Explicitly check for previewUrl here
+             logger.error(`[${traceId}] Nomination from search result is missing required previewUrl.`, { trackId: trackId });
+             throw new HttpsError("invalid-argument", "Selected track from search must have a preview URL.");
+        }
+        submissionData = {
+            trackId,
+            name,
+            artist,
+            previewUrl, // Now guaranteed to be string
+            albumImageUrl,
+        };
       } else {
         logger.debug(`[${traceId}] Processing predefined track nomination: ${nominationInput.predefinedTrackId}`);
         if (!currentGame.challenge) {
@@ -461,16 +471,18 @@ export async function submitSongNominationService(
         if (!predefinedSong) {
           throw new HttpsError("not-found", `Selected predefined track ID ${nominationInput.predefinedTrackId} not found in challenge "${currentGame.challenge}".`);
         }
+        // Check previewUrl strictly for predefined songs too
          if (!predefinedSong.previewUrl) {
-           logger.warn(`[${traceId}] Selected predefined track is missing previewUrl.`, { trackId: predefinedSong.trackId });
-           // Decide if this should be an error or just a warning
-           // throw new HttpsError("invalid-argument", "Selected predefined track is missing a preview URL.");
+           logger.error(`[${traceId}] Selected predefined track is missing required previewUrl in Firestore.`, { trackId: predefinedSong.trackId });
+           // This indicates an issue with the populated data, treat as an error.
+           throw new HttpsError("failed-precondition", "Selected predefined track data is incomplete (missing preview URL).");
         }
         submissionData = {
           trackId: predefinedSong.trackId,
-          name: predefinedSong.title,
+          name: predefinedSong.title, // Map title to name
           artist: predefinedSong.artist,
           previewUrl: predefinedSong.previewUrl, // Include preview URL
+          albumImageUrl: predefinedSong.albumImageUrl, // Include album image URL
         };
       }
       // --- End Prepare Submission Data ---
@@ -486,27 +498,81 @@ export async function submitSongNominationService(
       const newSubmissionCount = existingSubmissionCount + 1;
       logger.debug(`[${traceId}] Transaction (Submit Nomination Service ${gameId}/${playerId}): Submission check - ${newSubmissionCount}/${activePlayerCount} active players.`);
 
-      // Get the updated playerSongs map AFTER adding the current submission
-      // Construct the list of player songs *including* the current submission
-      // Note: The current submission (`submissionData`) doesn't have a timestamp yet,
-      // but PlayerSongSubmission.submittedAt is now optional.
-      const currentSubmissions = currentRound.playerSongs ? Object.values(currentRound.playerSongs) : [];
-      const allPlayerSubmissionsIncludingCurrent: PlayerSongSubmission[] = [
-          ...currentSubmissions,
-          { ...submissionData } // Add current submission (timestamp will be added on write by DAL)
-      ];
+      if (newSubmissionCount === activePlayerCount && activePlayerCount > 0) {
+        logger.info(`[${traceId}] All ${activePlayerCount} active players submitted songs for round ${currentRoundNumber}. Refreshing previews, assembling final song pool, and updating status to listening.`);
 
-      if (newSubmissionCount === activePlayerCount) {
-        logger.info(`[${traceId}] All ${activePlayerCount} active players submitted songs for round ${currentRoundNumber}. Assembling final song pool and updating status to listening.`);
+        let minExpiration = Infinity;
+        const updatedPlayerSongs: { [playerId: string]: PlayerSongSubmission } = {}; // To store refreshed songs
 
-        // --- Assemble Final Song Pool ---
-        // Use the locally constructed list
-        const playerNominatedSongs = allPlayerSubmissionsIncludingCurrent;
-        const playerNominatedTrackIds = new Set(playerNominatedSongs.map(song => song.trackId));
-        let finalSongPool: PlayerSongSubmission[] = [...playerNominatedSongs]; // Start with player songs
+        // --- Refresh Previews for Player Nominations ---
+        // Create a map of existing submissions for easier lookup
+        const existingPlayerSongsMap = currentRound.playerSongs || {};
 
-        const neededSongs = Math.max(0, 5 - finalSongPool.length);
-        logger.debug(`[${traceId}] Assembling final pool: ${finalSongPool.length} player songs, need ${neededSongs} more for minimum of 5.`);
+        // Include the current submission in the map to ensure it's processed
+        existingPlayerSongsMap[playerId] = { ...submissionData, submittedAt: Timestamp.now() }; // Use direct Timestamp
+
+        // Get music provider inside transaction scope
+        const musicProvider = getMusicProvider(); // Get provider instance outside map
+
+        const refreshPromises = Object.entries(existingPlayerSongsMap).map(async ([pId, submission]) => {
+           if (!submission?.trackId) return null; // Skip if no trackId
+
+           // Check provider *inside* the callback for TypeScript certainty
+           if (!musicProvider) {
+               logger.error(`[${traceId}] Music provider became unavailable during refresh loop.`);
+               return submission; // Return original submission if provider is gone
+           }
+
+           try {
+             // Use non-null assertion operator (!) after the null check
+             // Check if the provider implements getTrackDetails before calling
+             if (typeof musicProvider.getTrackDetails !== 'function') {
+                 logger.warn(`[${traceId}] Music provider does not support getTrackDetails. Cannot refresh preview for track ${submission.trackId}.`);
+                 return submission; // Return original if method not supported
+             }
+             const freshDetails = await musicProvider.getTrackDetails(submission.trackId, traceId);
+             if (freshDetails?.previewUrl) {
+               const expiration = parseExpirationFromUrl(freshDetails.previewUrl);
+               if (expiration) {
+                 minExpiration = Math.min(minExpiration, expiration);
+               } else {
+                  logger.warn(`[${traceId}] Could not parse expiration from refreshed preview URL for track ${submission.trackId}. Using default short duration.`);
+                  minExpiration = Math.min(minExpiration, Date.now() / 1000 + 30);
+               }
+               // Update the submission data with the fresh preview URL and ensure correct structure
+               updatedPlayerSongs[pId] = {
+                 trackId: freshDetails.trackId,
+                 name: freshDetails.name,
+                 artist: freshDetails.artistName, // Map artistName
+                 previewUrl: freshDetails.previewUrl,
+                 albumImageUrl: freshDetails.albumImageUrl, // Now allowed by type
+                 submittedAt: submission.submittedAt || Timestamp.now() // Use direct Timestamp
+               };
+               return updatedPlayerSongs[pId]; // Return updated data
+             } else {
+               // If refresh fails or returns no preview, EXCLUDE the song
+               logger.warn(`[${traceId}] Could not refresh preview URL for track ${submission.trackId}. Excluding from this round's playback.`);
+               // Do not add to updatedPlayerSongs, effectively removing it
+               return null; // Indicate removal
+             }
+           } catch (fetchError) {
+             logger.error(`[${traceId}] Error refreshing track details for ${submission.trackId}:`, fetchError);
+             // Exclude on error as well
+             logger.warn(`[${traceId}] Excluding track ${submission.trackId} due to error during preview refresh.`);
+             return null; // Indicate removal
+           }
+        });
+
+        await Promise.all(refreshPromises);
+        logger.debug(`[${traceId}] Finished refreshing preview URLs. Minimum expiration timestamp (Unix seconds): ${minExpiration === Infinity ? 'N/A' : minExpiration}`);
+
+        // --- Assemble Final Song Pool using refreshed data ---
+        const refreshedPlayerSongs = Object.values(updatedPlayerSongs).filter(Boolean) as PlayerSongSubmission[]; // Filter out nulls
+        const playerNominatedTrackIds = new Set(refreshedPlayerSongs.map(song => song.trackId));
+        let finalSongPool: PlayerSongSubmission[] = [...refreshedPlayerSongs]; // Start with refreshed player songs
+
+        const neededSongs = Math.max(0, 5 - finalSongPool.length); // Ensure minimum 5 songs
+        logger.debug(`[${traceId}] Assembling final pool: ${finalSongPool.length} refreshed player songs, need ${neededSongs} more.`);
 
         if (neededSongs > 0) {
           if (!currentGame.challenge) {
@@ -526,40 +592,54 @@ export async function submitSongNominationService(
 
             // Shuffle available predefined songs to add variety
             const shuffledPredefined = availablePredefined.sort(() => 0.5 - Math.random());
-            const songsToAdd = shuffledPredefined.slice(0, neededSongs);
+            // Map predefined songs to PlayerSongSubmission structure
+            const songsToAdd = shuffledPredefined.slice(0, neededSongs).map(pSong => ({
+                trackId: pSong.trackId,
+                name: pSong.title, // Map title to name
+                artist: pSong.artist,
+                previewUrl: pSong.previewUrl,
+                albumImageUrl: pSong.albumImageUrl, // Map albumImageUrl
+                // Predefined songs don't have a submitter or timestamp in this context
+            }));
 
-            logger.debug(`[${traceId}] Adding ${songsToAdd.length} predefined songs to the pool.`);
+            // Add predefined songs to the pool
+            finalSongPool = [...finalSongPool, ...songsToAdd];
+            logger.debug(`[${traceId}] Added ${songsToAdd.length} predefined songs to the pool.`);
+
+            // Log details of added predefined songs
             songsToAdd.forEach(song => {
-              // Add predefined song, omitting submittedAt as it's optional
-              finalSongPool.push({
-                trackId: song.trackId,
-                name: song.title,
-                artist: song.artist,
-                previewUrl: song.previewUrl,
-                // submittedAt is omitted here
-              });
+                logger.debug(`[${traceId}] Added predefined song: ${song.name} by ${song.artist} (ID: ${song.trackId})`);
             });
           }
         }
-        logger.info(`[${traceId}] Final song pool size for ranking: ${finalSongPool.length}`);
-        // --- End Assemble Final Song Pool ---
 
+        // Shuffle the final pool before saving
+        finalSongPool = finalSongPool.sort(() => 0.5 - Math.random());
+        logger.debug(`[${traceId}] Final song pool assembled with ${finalSongPool.length} songs.`);
 
-        // --- Update Statuses ---
-        // Step 1: Set intermediate transitioning status
-        logger.debug(`[${traceId}] Transaction: Setting status to transitioning_to_listening...`);
-        gameData.updateGameDetails(gameId, { status: 'transitioning_to_listening' as GameStatus }, traceId, transaction);
-        logger.debug(`[${traceId}] Transaction: Intermediate status set.`);
+        // 3. Update round status, song pool, player songs (with refreshed URLs), and playback end time
+        const playbackEndTime = minExpiration !== Infinity
+            ? Timestamp.fromMillis(minExpiration * 1000) // Use direct Timestamp
+            : Timestamp.fromMillis(Date.now() + 30000); // Use direct Timestamp
 
-        // Step 2: Set final round and game status, including the final song pool
+        logger.info(`[${traceId}] Setting playback end time to: ${playbackEndTime.toDate().toISOString()}`);
+
+        // Prepare the update data, ensuring finalSongPool is part of RoundUpdateData
+        // Prepare the update data, including setting isPlaying to true
         const roundUpdates: RoundUpdateData = {
-            status: "listening",
-            songsForRanking: finalSongPool // Add the final list
+          status: "listening",
+          playerSongs: updatedPlayerSongs, // Store the map with refreshed data
+          playbackEndTime: playbackEndTime, // Add the calculated end time
+          songsForRanking: finalSongPool, // Assuming final pool is used for ranking
+          isPlaying: true, // Set playback to start automatically
         };
-        roundData.updateRoundDetails(gameId, currentRoundNumber, roundUpdates, traceId, transaction);
 
-        gameData.updateGameDetails(gameId, { status: `round${currentRoundNumber}_listening` as GameStatus }, traceId, transaction);
-        // --- End Update Statuses ---
+        roundData.updateRoundDetails(gameId, currentRoundNumber, roundUpdates, traceId, transaction); // Pass traceId and transaction
+
+        // Update game status
+        gameData.updateGameDetails(gameId, { status: `round${currentRoundNumber}_listening` as GameStatus }, traceId, transaction); // Corrected order
+        logger.debug(`[${traceId}] Transaction (Submit Nomination Service ${gameId}/${playerId}): Updated round and game status to listening.`);
+
       }
       // --- End Update State ---
 
@@ -568,280 +648,71 @@ export async function submitSongNominationService(
 
     logger.info(`[${traceId}] Service: Player ${playerId} successfully submitted song nomination for game ${gameId}.`);
 
-  } catch (error) {
-    logger.error(`[${traceId}] Service Error: submitSongNominationService failed for player ${playerId} in game ${gameId}:`, { error });
-    if (error instanceof HttpsError) {
-      throw error; // Re-throw HttpsErrors directly
+  } catch (caughtError) { // Use the correct variable name 'caughtError'
+    logger.error(`[${traceId}] Service Error: submitSongNominationService failed for player ${playerId} in game ${gameId}:`, { error: caughtError });
+    if (caughtError instanceof HttpsError) {
+      throw caughtError; // Re-throw HttpsErrors directly
     }
     // Wrap other errors
-    throw new HttpsError("internal", "An unexpected error occurred while submitting the song nomination.", { originalError: error instanceof Error ? error.message : String(error) });
+    throw new HttpsError("internal", "An unexpected error occurred while submitting the song nomination.", { originalError: caughtError instanceof Error ? caughtError.message : String(caughtError) });
   }
 }
 
+// Helper function to parse expiration timestamp from Deezer preview URL
+function parseExpirationFromUrl(url: string): number | null {
+  try {
+    const urlParams = new URLSearchParams(new URL(url).search);
+    const hdnea = urlParams.get('hdnea');
+    if (!hdnea) return null;
+
+    const expMatch = hdnea.match(/exp=(\d+)/);
+    if (expMatch && expMatch[1]) {
+      return parseInt(expMatch[1], 10); // Unix timestamp in seconds
+    }
+    return null;
+  } catch (e) {
+    // Use the correct variable name 'e' for the caught error
+    logger.error("Error parsing expiration from URL:", url, e);
+    return null;
+  }
+}
 
 /**
- * Sets the challenge for the current round.
- * Contains the core business logic for setting the challenge.
+ * Sets the challenge for the current round. Only callable by the round host.
  * @param gameId The ID of the game.
- * @param roundId The ID/number of the round (e.g., "1", "2").
- * @param callerPlayerId The Player ID of the user calling the function (temporary auth).
- * @param challenge The challenge string to set.
+ * @param playerId The ID of the player attempting to set the challenge (must be host).
+ * @param challengeText The text of the challenge.
  * @param traceId For logging purposes.
- * @throws HttpsError for validation errors, game/round state issues, authorization failures, or internal problems.
+ * @throws HttpsError for validation errors, game state issues, or internal problems.
  */
 export async function setChallengeService(
   gameId: string,
-  roundId: string, // Keep as string to match handler/DAL expectations
-  callerPlayerId: string, // Changed from callerUid
-  challenge: string,
+  playerId: string,
+  challengeText: string,
   traceId: TraceId
 ): Promise<void> {
-  logger.info(`[${traceId}] Service: setChallengeService called.`, { gameId, roundId, callerPlayerId, challenge });
-
-  // --- Input Validation (Basic - handler does more) ---
-  if (!gameId || typeof gameId !== "string") {
-    throw new HttpsError("invalid-argument", "Game ID is required.");
-  }
-  if (!roundId || typeof roundId !== "string") {
-    throw new HttpsError("invalid-argument", "Round ID is required.");
-  }
-  if (!callerPlayerId || typeof callerPlayerId !== "string") { // Changed from callerUid
-    throw new HttpsError("invalid-argument", "Caller Player ID is required for authorization."); // Changed message
-  }
-  if (!challenge || typeof challenge !== "string" || challenge.trim().length === 0) {
-    throw new HttpsError("invalid-argument", "Challenge cannot be empty.");
-  }
-  // Length validation done in handler
-  // --- End Input Validation ---
-
-  const roundNumber = parseInt(roundId, 10);
-  if (isNaN(roundNumber)) {
-    logger.error(`[${traceId}] Invalid round ID format: ${roundId}`);
-    throw new HttpsError("invalid-argument", "Round ID must be a valid number string.");
-  }
-
-  try {
-    await db.runTransaction(async (transaction) => {
-      logger.debug(`[${traceId}] Transaction (Set Challenge Service ${gameId}/${roundId}): Starting.`);
-
-      // --- Get Current State ---
-      const currentGame = await gameData.getGameById(gameId, traceId, transaction);
-      if (!currentGame) {
-        throw new HttpsError("not-found", `Game ${gameId} not found.`);
-      }
-      if (currentGame.currentRound !== roundNumber) {
-        throw new HttpsError("failed-precondition", `Attempting to set challenge for round ${roundNumber}, but game is currently in round ${currentGame.currentRound}.`);
-      }
-
-      const currentRound = await roundData.getRoundByNumber(gameId, roundNumber, traceId, transaction);
-      if (!currentRound) {
-        throw new HttpsError("not-found", `Round ${roundNumber} for game ${gameId} not found.`);
-      }
-      // --- End Get Current State ---
-
-
-      // --- Business Rule & Authorization Checks ---
-      const expectedGameStatus = `round${roundNumber}_announcing`;
-      if (currentGame.status !== expectedGameStatus) {
-        throw new HttpsError("failed-precondition", `Game is not in the challenge announcement phase (current: ${currentGame.status}).`);
-      }
-      if (currentRound.status !== "announcing") {
-        throw new HttpsError("failed-precondition", `Round ${roundNumber} is not in the announcing phase (current: ${currentRound.status}).`);
-      }
-
-      // Authorization: Check if the caller's playerId matches the round's hostPlayerId
-      // TODO: Replace this with UID check once authentication is implemented
-      if (callerPlayerId !== currentRound.hostPlayerId) {
-        logger.warn(`[${traceId}] Authorization failed: Caller ${callerPlayerId} is not the host (${currentRound.hostPlayerId}) for round ${roundNumber}.`);
-        throw new HttpsError("permission-denied", "Only the Round Host can set the challenge.");
-      }
-      if (currentRound.status !== "announcing") {
-        throw new HttpsError("failed-precondition", `Round ${roundNumber} is not in the announcing phase (current: ${currentRound.status}).`);
-      }
-
-      // Authorization: Check if caller is the host for this round
-      if (currentRound.hostPlayerId !== callerPlayerId) { // Corrected variable name
-        logger.warn(`[${traceId}] Authorization failed: Caller ${callerPlayerId} is not the host (${currentRound.hostPlayerId}) for round ${roundNumber}.`); // Corrected variable name
-        throw new HttpsError("permission-denied", "Only the Round Host can set the challenge.");
-      }
-
-      // Check if challenge is already set
-      if (currentRound.challenge && currentRound.challenge.trim().length > 0) {
-        logger.warn(`[${traceId}] Challenge already set for round ${roundNumber} to: "${currentRound.challenge}".`);
-        throw new HttpsError("failed-precondition", `The challenge for round ${roundNumber} has already been set.`);
-      }
-      // --- End Business Rule & Authorization Checks ---
-
-
-      // --- Update State (ALL WRITES) ---
-      const updates = { challenge: challenge.trim() };
-
-      // 1. Update Round Document
-      logger.debug(`[${traceId}] Transaction: Updating challenge for round ${roundNumber}.`);
-      roundData.updateRoundDetails(gameId, roundNumber, updates, traceId, transaction);
-
-      // 2. Update Game Document (optional, but useful for display)
-      // Note: Game status remains '_announcing' until host explicitly starts selection phase
-      logger.debug(`[${traceId}] Transaction: Updating challenge in game document.`);
-      gameData.updateGameDetails(gameId, updates, traceId, transaction);
-      // --- End Update State ---
-
-      logger.debug(`[${traceId}] Transaction (Set Challenge Service ${gameId}/${roundId}): Writes completed.`);
-    }); // --- End Transaction ---
-
-    logger.info(`[${traceId}] Service: Successfully set challenge for round ${roundId} in game ${gameId}.`);
-
-  } catch (error) {
-    logger.error(`[${traceId}] Service Error: setChallengeService failed for game ${gameId}, round ${roundId}:`, { error });
-    if (error instanceof HttpsError) {
-      throw error; // Re-throw HttpsErrors directly
-    }
-    // Wrap other errors
-    throw new HttpsError("internal", "An unexpected error occurred while setting the challenge.", { originalError: error instanceof Error ? error.message : String(error) });
-  }
-}
-
-
-/**
- * Transitions a game from the listening phase to the ranking phase.
- * Contains the core business logic for starting ranking.
- * @param gameId The ID of the game.
- * @param callerUid The UID of the user calling the function.
- * @param traceId For logging purposes.
- * @throws HttpsError for validation errors, game state issues, authorization failures, or internal problems.
- */
-export async function startRankingPhaseService(
-  gameId: string,
-  callerPlayerId: string, // Changed parameter name
-  traceId: TraceId
-): Promise<void> {
-  logger.info(`[${traceId}] Service: startRankingPhaseService called for game ${gameId} by ${callerPlayerId}.`);
+  logger.info(`[${traceId}] Service: setChallengeService called.`, { gameId, playerId, challengeText });
 
   // --- Input Validation ---
   if (!gameId || typeof gameId !== "string") {
     throw new HttpsError("invalid-argument", "Game ID is required.");
   }
-  if (!callerPlayerId || typeof callerPlayerId !== "string") { // Changed callerUid to callerPlayerId
-    throw new HttpsError("invalid-argument", "Caller Player ID is required for authorization."); // Changed message
+  if (!playerId || typeof playerId !== "string") {
+    throw new HttpsError("invalid-argument", "Player ID is required.");
+  }
+  if (!challengeText || typeof challengeText !== "string" || challengeText.trim().length === 0) {
+    throw new HttpsError("invalid-argument", "Challenge text cannot be empty.");
   }
   // --- End Input Validation ---
 
-  try {
-    await db.runTransaction(async (transaction) => {
-      logger.debug(`[${traceId}] Transaction (Start Ranking Phase Service ${gameId}): Starting.`);
-
-      // --- Get Current State ---
-      const currentGame = await gameData.getGameById(gameId, traceId, transaction);
-      if (!currentGame) {
-        throw new HttpsError("not-found", `Game ${gameId} not found.`);
-      }
-      const currentRoundNumber = currentGame.currentRound;
-      if (!currentRoundNumber || currentRoundNumber <= 0) {
-        throw new HttpsError("failed-precondition", `Game ${gameId} is not in an active round.`);
-      }
-      // --- End Get Current State ---
-
-
-      // --- Business Rule & Authorization Checks ---
-      const expectedGameStatus = `round${currentRoundNumber}_listening`;
-      if (currentGame.status !== expectedGameStatus) {
-        throw new HttpsError("failed-precondition", `Game is not in the listening phase (current: ${currentGame.status}). Cannot start ranking.`);
-      }
-      // Authorization: Check if caller is the host for this round
-      // TODO: Replace this with UID check once authentication is implemented
-      if (currentGame.roundHostPlayerId !== callerPlayerId) {
-        logger.warn(`[${traceId}] Authorization failed: Caller Player ID (${callerPlayerId}) is not the host (${currentGame.roundHostPlayerId}) for round ${currentRoundNumber}.`);
-        throw new HttpsError("permission-denied", "Only the Round Host can start the ranking phase.");
-      }
-
-
-      /**
-       * Allows the round host to control the synchronized playback state.
-       * @param gameId The ID of the game.
-       * @param callerUid The UID of the user calling the function.
-       * @param action The playback action ('play', 'pause', 'next', 'prev', 'seekToIndex').
-       * @param targetIndex Optional index for 'seekToIndex' action.
-       * @param traceId For logging purposes.
-       * @throws HttpsError for validation errors, game state issues, authorization failures, or internal problems.
-       */
-      // --- End Business Rule & Authorization Checks ---
-
-
-      // --- Update State ---
-      // 1. Update Game Document Status
-      // Step 1: Set intermediate transitioning status
-      logger.debug(`[${traceId}] Transaction: Setting status to transitioning_to_ranking...`);
-      gameData.updateGameDetails(gameId, { status: 'transitioning_to_ranking' as GameStatus }, traceId, transaction);
-      logger.debug(`[${traceId}] Transaction: Intermediate status set.`);
-
-      // Step 2: Set final status
-      const nextGameStatus = `round${currentRoundNumber}_ranking` as GameStatus;
-      gameData.updateGameDetails(gameId, { status: nextGameStatus }, traceId, transaction); // Corrected order
-
-      // 2. Update Round Document Status and set rankingStartTime
-      const roundUpdates: RoundUpdateData = {
-        status: "ranking",
-        rankingStartTime: FieldValue.serverTimestamp()
-      };
-      roundData.updateRoundDetails(gameId, currentRoundNumber, roundUpdates, traceId, transaction);
-      // --- End Update State ---
-
-      logger.debug(`[${traceId}] Transaction (Start Ranking Phase Service ${gameId}): Writes completed. Status updated to ${nextGameStatus}.`);
-    }); // --- End Transaction --- Correctly placed closing brace for transaction
-
-    logger.info(`[${traceId}] Service: Successfully started ranking phase for game ${gameId}.`); // This log is now correctly outside the transaction but inside the try block
-
-  } catch (error) { // This catch correctly corresponds to the try block starting on line 578
-    logger.error(`[${traceId}] Service Error: startRankingPhaseService failed for game ${gameId}:`, { error });
-    if (error instanceof HttpsError) {
-      throw error; // Re-throw HttpsErrors directly
-    }
-    // Wrap other errors
-    throw new HttpsError("internal", "An unexpected error occurred while starting the ranking phase.", { originalError: error instanceof Error ? error.message : String(error) });
-  }
-} // This brace correctly closes the startRankingPhaseService function
-
-
-/**
- * Allows the round host to control the synchronized playback state.
- * @param gameId The ID of the game.
- * @param callerUid The UID of the user calling the function.
- * @param action The playback action ('play', 'pause', 'next', 'prev', 'seekToIndex').
- * @param targetIndex Optional index for 'seekToIndex' action.
- * @param traceId For logging purposes.
- * @throws HttpsError for validation errors, game state issues, authorization failures, or internal problems.
- */
-export async function controlPlaybackService(
-  gameId: string,
-  callerUid: string,
-  action: 'play' | 'pause' | 'next' | 'prev' | 'seekToIndex',
-  targetIndex: number | undefined | null, // Only used for seekToIndex
-  traceId: TraceId
-): Promise<void> {
-  logger.info(`[${traceId}] Service: controlPlaybackService called.`, { gameId, callerUid, action, targetIndex });
-
-  // --- Input Validation ---
-  if (!gameId || typeof gameId !== "string") {
-    throw new HttpsError("invalid-argument", "Game ID is required.");
-  }
-  if (!callerUid || typeof callerUid !== "string") {
-    throw new HttpsError("invalid-argument", "Caller UID is required for authorization.");
-  }
-  const validActions = ['play', 'pause', 'next', 'prev', 'seekToIndex'];
-  if (!action || !validActions.includes(action)) {
-    throw new HttpsError("invalid-argument", `Invalid playback action specified: ${action}. Must be one of ${validActions.join(', ')}.`);
-  }
-  if (action === 'seekToIndex' && (targetIndex === undefined || targetIndex === null || typeof targetIndex !== 'number' || !Number.isInteger(targetIndex) || targetIndex < 0)) {
-    throw new HttpsError("invalid-argument", "A valid non-negative integer 'targetIndex' is required for the 'seekToIndex' action.");
-  }
-  // --- End Input Validation ---
+  let currentGame: Game | null = null; // Define currentGame here
 
   try {
     await db.runTransaction(async (transaction) => {
-      logger.debug(`[${traceId}] Transaction (Control Playback Service ${gameId}): Starting.`);
+      logger.debug(`[${traceId}] Transaction (Set Challenge Service ${gameId}/${playerId}): Starting.`);
 
       // --- Get Current State ---
-      const currentGame = await gameData.getGameById(gameId, traceId, transaction);
+      currentGame = await gameData.getGameById(gameId, traceId, transaction); // Assign inside transaction
       if (!currentGame) {
         throw new HttpsError("not-found", `Game ${gameId} not found.`);
       }
@@ -850,93 +721,288 @@ export async function controlPlaybackService(
         throw new HttpsError("failed-precondition", `Game ${gameId} is not in an active round.`);
       }
       const currentRound = await roundData.getRoundByNumber(gameId, currentRoundNumber, traceId, transaction);
+       if (!currentRound) {
+        throw new HttpsError("not-found", `Round ${currentRoundNumber} for game ${gameId} not found.`);
+      }
+      // --- End Get Current State ---
+
+
+      // --- Business Rule Checks ---
+      const expectedGameStatusSuffix = "_announcing";
+      if (!currentGame.status?.endsWith(expectedGameStatusSuffix)) {
+        throw new HttpsError("failed-precondition", `Game is not in an announcing phase (current: ${currentGame.status}). Cannot set challenge.`);
+      }
+       if (currentRound.status !== "announcing") {
+        throw new HttpsError("failed-precondition", `Round ${currentRoundNumber} is not in the announcing phase (current: ${currentRound.status}).`);
+      }
+      // Authorization check: Only the Round Host can set the challenge
+      if (playerId !== currentGame.roundHostPlayerId) {
+        logger.warn(`[${traceId}] Permission denied: Player ${playerId} is not the host (${currentGame.roundHostPlayerId}) for game ${gameId}.`);
+        throw new HttpsError("permission-denied", "Only the Round Host can set the challenge.");
+      }
+      // --- End Business Rule Checks ---
+
+
+      // --- Update State ---
+      // 1. Update Game Document
+      gameData.updateGameDetails(gameId, { challenge: challengeText }, traceId, transaction);
+
+      // 2. Update Round Document
+      roundData.updateRoundDetails(gameId, currentRoundNumber, { challenge: challengeText }, traceId, transaction);
+      // --- End Update State ---
+
+      logger.debug(`[${traceId}] Transaction (Set Challenge Service ${gameId}/${playerId}): Writes completed.`);
+      // Log success inside the transaction
+      logger.info(`[${traceId}] Service: Player ${playerId} successfully set challenge for round ${currentGame.currentRound} in game ${gameId}.`);
+    }); // --- End Transaction ---
+
+    // Moved log inside transaction where currentGame is guaranteed non-null
+
+  } catch (caughtError) { // Use a different variable name
+    logger.error(`[${traceId}] Service Error: setChallengeService failed for player ${playerId} in game ${gameId}:`, { error: caughtError });
+    if (caughtError instanceof HttpsError) {
+      throw caughtError; // Re-throw HttpsErrors directly
+    }
+    // Wrap other errors
+    throw new HttpsError("internal", "An unexpected error occurred while setting the challenge.", { originalError: caughtError instanceof Error ? caughtError.message : String(caughtError) });
+  }
+}
+
+
+/**
+ * Transitions a game from the listening phase to the ranking phase.
+ * Contains the core business logic for starting ranking.
+ * @param gameId The ID of the game.
+ * @param traceId For logging purposes.
+ * @throws HttpsError for validation errors, game state issues, or internal problems.
+ */
+export async function startRankingPhaseService(
+  gameId: string,
+  traceId: TraceId,
+  callerPlayerId: string // Added for authorization
+): Promise<void> {
+  logger.info(`[${traceId}] Service: startRankingPhaseService called for game ${gameId}.`, { callerPlayerId });
+
+  // --- Input Validation ---
+  if (!gameId || typeof gameId !== "string") {
+    throw new HttpsError("invalid-argument", "Game ID is required.");
+  }
+   if (!callerPlayerId || typeof callerPlayerId !== "string") {
+    throw new HttpsError("invalid-argument", "Player ID is required for authorization.");
+  }
+  // --- End Input Validation ---
+
+  let currentGame: Game | null = null;
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      logger.debug(`[${traceId}] Transaction (Start Ranking Phase Service ${gameId}): Starting.`);
+
+      // --- Get Current State ---
+      currentGame = await gameData.getGameById(gameId, traceId, transaction);
+      if (!currentGame) {
+        throw new HttpsError("not-found", `Game ${gameId} not found.`);
+      }
+      const currentRoundNumber = currentGame.currentRound;
+      if (!currentRoundNumber || currentRoundNumber <= 0) {
+        throw new HttpsError("failed-precondition", `Game ${gameId} is not in an active round.`);
+      }
+      const currentRound = await roundData.getRoundByNumber(gameId, currentRoundNumber, traceId, transaction);
+       if (!currentRound) {
+        throw new HttpsError("not-found", `Round ${currentRoundNumber} for game ${gameId} not found.`);
+      }
+      // --- End Get Current State ---
+
+
+      // --- Business Rule Checks ---
+      const expectedGameStatusSuffix = "_listening";
+      if (!currentGame.status?.endsWith(expectedGameStatusSuffix)) {
+        throw new HttpsError("failed-precondition", `Game is not in a listening phase (current: ${currentGame.status}). Cannot start ranking.`);
+      }
+       if (currentRound.status !== "listening") {
+        throw new HttpsError("failed-precondition", `Round ${currentRoundNumber} is not in the listening phase (current: ${currentRound.status}).`);
+      }
+      // Authorization check: Only the Round Host can start the ranking phase
+      if (callerPlayerId !== currentGame.roundHostPlayerId) {
+        logger.warn(`[${traceId}] Permission denied: Player ${callerPlayerId} is not the host (${currentGame.roundHostPlayerId}) for game ${gameId}.`);
+        throw new HttpsError("permission-denied", "Only the Round Host can start the ranking phase.");
+      }
+      // --- End Business Rule Checks ---
+
+
+      // --- Update State ---
+      // 1. Update Game Document Status
+      const nextGameStatus = `round${currentRoundNumber}_ranking` as GameStatus;
+      gameData.updateGameDetails(gameId, { status: nextGameStatus }, traceId, transaction);
+
+      // 2. Update Round Document Status and set rankingStartTime
+      const roundUpdates = {
+        status: "ranking" as const,
+        rankingStartTime: FieldValue.serverTimestamp()
+      };
+      roundData.updateRoundDetails(gameId, currentRoundNumber, roundUpdates, traceId, transaction);
+      // --- End Update State ---
+
+      logger.debug(`[${traceId}] Transaction (Start Ranking Phase Service ${gameId}): Writes completed. Status updated to ${nextGameStatus}.`);
+      // Log success inside the transaction
+      logger.info(`[${traceId}] Service: Successfully started ranking phase for round ${currentGame.currentRound} in game ${gameId}.`);
+    }); // --- End Transaction --- Correctly placed closing brace for transaction
+
+    // Moved log inside transaction where currentGame is guaranteed non-null
+
+  } catch (caughtError) { // This catch correctly corresponds to the try block starting on line 980
+    logger.error(`[${traceId}] Service Error: startRankingPhaseService failed for game ${gameId}:`, { error: caughtError });
+    if (caughtError instanceof HttpsError) {
+      throw caughtError; // Re-throw HttpsErrors directly
+    }
+    // Wrap other errors
+    throw new HttpsError("internal", "An unexpected error occurred while starting the ranking phase.", { originalError: caughtError instanceof Error ? caughtError.message : String(caughtError) });
+  }
+} // This brace correctly closes the startRankingPhaseService function
+
+
+/**
+ * Controls the playback state for the listening phase (e.g., next, previous song).
+ * @param gameId The ID of the game.
+ * @param playerId The ID of the player initiating the action (must be host).
+ * @param action The playback action ('next', 'prev', 'seekToIndex').
+ * @param index Optional index for 'seekToIndex'.
+ * @param traceId For logging purposes.
+ * @throws HttpsError for validation errors, game state issues, or internal problems.
+ */
+export async function controlPlaybackService(
+  gameId: string,
+  playerId: string,
+  action: 'next' | 'prev' | 'seekToIndex' | 'play' | 'pause', // Add play/pause
+  index?: number, // Optional index for seekToIndex
+  traceId?: TraceId
+): Promise<void> {
+  const effectiveTraceId = traceId || `controlPlayback_${Date.now()}`;
+  logger.info(`[${effectiveTraceId}] Service: controlPlaybackService called.`, { gameId, playerId, action, index });
+
+  // --- Input Validation ---
+  if (!gameId || typeof gameId !== "string") {
+    throw new HttpsError("invalid-argument", "Game ID is required.");
+  }
+  if (!playerId || typeof playerId !== "string") {
+    throw new HttpsError("invalid-argument", "Player ID is required.");
+  }
+  // Allow play/pause actions now
+  if (!action || !['next', 'prev', 'seekToIndex', 'play', 'pause'].includes(action)) {
+    throw new HttpsError("invalid-argument", "Invalid playback action specified.");
+  }
+  if (action === 'seekToIndex' && (typeof index !== 'number' || index < 0)) {
+     throw new HttpsError("invalid-argument", "Valid index is required for 'seekToIndex' action.");
+  }
+  // --- End Input Validation ---
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      logger.debug(`[${effectiveTraceId}] Transaction (Control Playback Service ${gameId}/${playerId}): Starting.`);
+
+      // --- Get Current State ---
+      const currentGame = await gameData.getGameById(gameId, effectiveTraceId, transaction);
+      if (!currentGame) {
+        throw new HttpsError("not-found", `Game ${gameId} not found.`);
+      }
+      const currentRoundNumber = currentGame.currentRound;
+      if (!currentRoundNumber || currentRoundNumber <= 0) {
+        throw new HttpsError("failed-precondition", `Game ${gameId} is not in an active round.`);
+      }
+      const currentRound = await roundData.getRoundByNumber(gameId, currentRoundNumber, effectiveTraceId, transaction);
       if (!currentRound) {
         throw new HttpsError("not-found", `Round ${currentRoundNumber} for game ${gameId} not found.`);
       }
       // --- End Get Current State ---
 
 
-      // --- Business Rule & Authorization Checks ---
-      const expectedGameStatus = `round${currentRoundNumber}_listening`;
-      if (currentGame.status !== expectedGameStatus) {
-        throw new HttpsError("failed-precondition", `Game is not in the listening phase (current: ${currentGame.status}). Cannot control playback.`);
+      // --- Business Rule Checks ---
+      const expectedGameStatusSuffix = "_listening";
+      if (!currentGame.status?.endsWith(expectedGameStatusSuffix)) {
+        throw new HttpsError("failed-precondition", `Game is not in a listening phase (current: ${currentGame.status}). Cannot control playback.`);
       }
-      // Authorization: Check if caller is the host for this round
-      if (currentGame.roundHostPlayerId !== callerUid) {
-        logger.warn(`[${traceId}] Authorization failed: Caller ${callerUid} is not the host (${currentGame.roundHostPlayerId}) for round ${currentRoundNumber}.`);
+      if (currentRound.status !== "listening") {
+        throw new HttpsError("failed-precondition", `Round ${currentRoundNumber} is not in the listening phase (current: ${currentRound.status}).`);
+      }
+      // Authorization check: Only the Round Host can control playback
+      if (playerId !== currentGame.roundHostPlayerId) {
+        logger.warn(`[${effectiveTraceId}] Permission denied: Player ${playerId} is not the host (${currentGame.roundHostPlayerId}) for game ${gameId}.`);
         throw new HttpsError("permission-denied", "Only the Round Host can control playback.");
       }
-      // --- End Business Rule & Authorization Checks ---
+      // Use songsForRanking as the primary source for the playback pool
+      const songPool = currentRound.songsForRanking || [];
+      if (!songPool || songPool.length === 0) {
+         throw new HttpsError("failed-precondition", "Cannot control playback: Song pool is empty.");
+      }
+      // --- End Business Rule Checks ---
 
-      // --- Calculate New Playback State ---
-      const currentPlayingIndex = currentRound.currentPlayingTrackIndex ?? 0; // Default to 0 if undefined
-      const currentIsPlaying = currentRound.isPlaying ?? false; // Default to false if undefined
-      const numTracks = currentRound.playerSongs ? Object.keys(currentRound.playerSongs).length : 0; // Or however tracks are stored/counted
 
+      // --- Calculate Next State ---
+      let currentPlayingIndex = currentRound.currentPlayingTrackIndex ?? 0; // Default to 0 if undefined
       let nextPlayingIndex = currentPlayingIndex;
-      let nextIsPlaying = currentIsPlaying;
+
+      let nextIsPlaying = currentRound.isPlaying ?? false; // Get current playing state
 
       switch (action) {
         case 'play':
           nextIsPlaying = true;
+          logger.debug(`[${effectiveTraceId}] Action 'play': Setting isPlaying to true.`);
           break;
         case 'pause':
           nextIsPlaying = false;
+          logger.debug(`[${effectiveTraceId}] Action 'pause': Setting isPlaying to false.`);
           break;
         case 'next':
-          if (numTracks > 0) {
-            nextPlayingIndex = (currentPlayingIndex + 1) % numTracks;
-          }
-          // Keep isPlaying state unless explicitly paused
+          nextPlayingIndex = (currentPlayingIndex + 1) % songPool.length;
+          nextIsPlaying = true; // Assume play on track change
+          logger.debug(`[${effectiveTraceId}] Action 'next': Moving from index ${currentPlayingIndex} to ${nextPlayingIndex}, setting isPlaying to true.`);
           break;
         case 'prev':
-          if (numTracks > 0) {
-            nextPlayingIndex = (currentPlayingIndex - 1 + numTracks) % numTracks;
-          }
-          // Keep isPlaying state unless explicitly paused
+          nextPlayingIndex = (currentPlayingIndex - 1 + songPool.length) % songPool.length;
+          nextIsPlaying = true; // Assume play on track change
+           logger.debug(`[${effectiveTraceId}] Action 'prev': Moving from index ${currentPlayingIndex} to ${nextPlayingIndex}, setting isPlaying to true.`);
           break;
         case 'seekToIndex':
-          // Validate targetIndex against number of tracks
-          if (targetIndex! >= 0 && targetIndex! < numTracks) {
-            nextPlayingIndex = targetIndex!;
+          if (index !== undefined && index >= 0 && index < songPool.length) {
+            nextPlayingIndex = index;
+            nextIsPlaying = true; // Assume play on seek
+             logger.debug(`[${effectiveTraceId}] Action 'seekToIndex': Moving from index ${currentPlayingIndex} to ${nextPlayingIndex}, setting isPlaying to true.`);
           } else {
-            logger.warn(`[${traceId}] Invalid targetIndex ${targetIndex} for seekToIndex (numTracks: ${numTracks}). Ignoring seek.`);
-            // Don't change index if invalid
+             logger.warn(`[${effectiveTraceId}] Invalid index ${index} provided for 'seekToIndex'. Keeping current index ${currentPlayingIndex}.`);
+             // Keep nextPlayingIndex as currentPlayingIndex if index is invalid
           }
-          // Keep isPlaying state unless explicitly paused
           break;
       }
-
-      const updates: Partial<RoundDocument> = {};
-      if (nextPlayingIndex !== currentPlayingIndex) {
-        updates.currentPlayingTrackIndex = nextPlayingIndex;
-      }
-      if (nextIsPlaying !== currentIsPlaying) {
-        updates.isPlaying = nextIsPlaying;
-      }
-      // --- End Calculate New Playback State ---
+      // --- End Calculate Next State ---
 
 
       // --- Update State ---
-      if (Object.keys(updates).length > 0) {
-        logger.debug(`[${traceId}] Transaction (Control Playback Service ${gameId}): Updating round playback state:`, updates);
-        roundData.updateRoundDetails(gameId, currentRoundNumber, updates, traceId, transaction);
-      } else {
-        logger.debug(`[${traceId}] Transaction (Control Playback Service ${gameId}): No playback state changes needed for action '${action}'.`);
+      const roundUpdates: RoundUpdateData = {};
+      if (nextPlayingIndex !== currentPlayingIndex) {
+          roundUpdates.currentPlayingTrackIndex = nextPlayingIndex;
       }
+      // Always update isPlaying based on the action outcome
+      roundUpdates.isPlaying = nextIsPlaying;
+
+      // Only update if there are changes
+      if (Object.keys(roundUpdates).length > 0) {
+      } else {
+          logger.debug(`[${effectiveTraceId}] No state changes needed for action '${action}'.`);
+      };
+      roundData.updateRoundDetails(gameId, currentRoundNumber, roundUpdates, effectiveTraceId, transaction);
       // --- End Update State ---
 
-      logger.debug(`[${traceId}] Transaction (Control Playback Service ${gameId}): Writes completed (if any).`);
+      logger.debug(`[${effectiveTraceId}] Transaction (Control Playback Service ${gameId}/${playerId}): Writes completed. Updates:`, roundUpdates);
     }); // --- End Transaction ---
 
-    logger.info(`[${traceId}] Service: Successfully processed playback control action '${action}' for game ${gameId}.`);
+    logger.info(`[${effectiveTraceId}] Service: Successfully processed playback control action '${action}' for game ${gameId}.`);
 
-  } catch (error) {
-    logger.error(`[${traceId}] Service Error: controlPlaybackService failed for game ${gameId}:`, { error });
-    if (error instanceof HttpsError) {
-      throw error; // Re-throw HttpsErrors directly
+  } catch (caughtError) { // Use a different variable name
+    logger.error(`[${effectiveTraceId}] Service Error: controlPlaybackService failed for game ${gameId}:`, { error: caughtError });
+    if (caughtError instanceof HttpsError) {
+      throw caughtError; // Re-throw HttpsErrors directly
     }
     // Wrap other errors
-    throw new HttpsError("internal", "An unexpected error occurred while controlling playback.", { originalError: error instanceof Error ? error.message : String(error) });
+    throw new HttpsError("internal", "An unexpected error occurred while controlling playback.", { originalError: caughtError instanceof Error ? caughtError.message : String(caughtError) });
   }
 }

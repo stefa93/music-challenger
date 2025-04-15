@@ -7,7 +7,8 @@ export interface PredefinedSong {
   trackId: string;
   title: string;
   artist: string;
-  previewUrl: string;
+  previewUrl: string; // Preview URL is required
+  albumImageUrl?: string; // Optional album art URL
 }
 
 /**

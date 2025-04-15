@@ -1,6 +1,5 @@
 import { GameStatus } from '../game/types';
 import { PredefinedSong } from '../challenge/types'; // Import PredefinedSong type
-import { ChallengeDocument } from '../challenge/types'; // Use existing Challenge type
 
 // Information about a popular song
 export interface PopularSongInfo {

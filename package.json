@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "biome:check": "biome check --apply-unsafe .",
@@ -16,7 +16,8 @@
     "ui:component": "pnpm dlx shadcn@latest add",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "populate-challenges": "curl -X POST http://localhost:5001/dance-floor-ranking/us-central1/populateChallenges -H \"Content-Type: application/json\" -d '{\"data\": {}}'",
+    "populate-challenges:dev": "curl -X POST http://localhost:5001/dance-floor-ranking/us-central1/populateChallenges -H \"Content-Type: application/json\" -d \"{\\\"data\\\":{}}\"",
+    "populate-challenges:prod": "curl -X POST https://populatechallenges-pkl5gq276q-uc.a.run.app -H \"Content-Type: application/json\" -d \"{\\\"data\\\":{}}\"",
     "generate-mocks": "tsx --tsconfig tsconfig.json scripts/generate-storybook-mocks.ts"
   },
   "dependencies": {

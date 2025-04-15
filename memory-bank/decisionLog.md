@@ -498,6 +498,112 @@ This file records architectural and implementation decisions using a list format
 
 ## Implementation Details
 
+*   Modified backend handlers (`round.handlers.ts`, `game.handlers.ts`) to extract `playerId` from `request.data` [2025-09-04].
+*   Modified backend services (`round.service.ts`, `game.service.ts`) to accept `callerPlayerId` and perform authorization checks against `roundHostPlayerId` or `creatorPlayerId` [2025-09-04].
+*   Updated frontend API wrappers (`firebaseApi.ts`) to include `playerId` in payloads [2025-09-04].
+*   Updated frontend components (`GameView.tsx`, `MusicPlaybackPhase.tsx`, etc.) to pass the current `playerId` when calling API functions [2025-09-04].
+
+---
+
+## Decision
+
+*   [2025-04-14 22:56:58] - Refresh song preview URLs when transitioning from selection to listening phase and calculate playback end time based on URL expiration.
+
+## Rationale
+
+*   Deezer preview URLs expire, causing playback failures if the URL fetched during population is used later.
+*   Refreshing URLs ensures the most up-to-date preview is available for the listening phase.
+*   Extracting the `exp` timestamp from the URL allows setting a defined end time for the listening phase, preventing playback beyond the URL's validity.
+
+## Implementation Details
+
+*   Modified `submitSongNominationService` (`round.service.ts`) [2025-04-14]:
+    *   When all players have submitted, iterate through `playerSongs`.
+    *   Call `musicProvider.getTrackDetails()` for each song to get fresh details.
+    *   Update `previewUrl` in the `playerSongs` map.
+    *   Parse `exp` timestamp from each new `previewUrl` using helper function `parseExpirationFromUrl`.
+    *   Calculate the minimum `exp` timestamp (`minExpiration`).
+    *   Store `minExpiration` (converted to Firestore Timestamp) as `playbackEndTime` in the round document.
+    *   Set `isPlaying: true` in the round document to trigger initial playback.
+*   Added `playbackEndTime` and `isPlaying` to `RoundUpdateData` type (`round/types.ts`) [2025-04-14].
+*   Added `parseExpirationFromUrl` helper function to `round.service.ts` [2025-04-14].
+
+---
+
+## Decision
+
+*   [2025-04-14 22:56:58] - Enforce non-null `previewUrl` for all songs used in playback/ranking.
+
+## Rationale
+
+*   Songs without previews cannot be played and should not be included in the listening or ranking phases.
+*   Ensures data integrity and prevents errors related to missing URLs.
+
+## Implementation Details
+
+*   Updated `PlayerSongSubmission` (`round/types.ts`) and `PredefinedSong` (`challenge/types.ts`) types to require `previewUrl: string` [2025-04-14].
+*   Updated `populateChallenges` (`config.handlers.ts`) to only add songs with non-null `previewUrl` [Verified 2025-04-14].
+*   Updated `submitSongNominationService` (`round.service.ts`) [2025-04-14]:
+    *   Throw error if `searchResult` lacks `previewUrl`.
+    *   Throw error if selected `predefinedSong` lacks `previewUrl`.
+    *   Exclude songs from `updatedPlayerSongs` if preview refresh fails or returns null URL.
+
+---
+
+## Decision
+
+*   [2025-04-14 23:34:23] - Fix page scrolling for long content by modifying `#root` CSS.
+
+## Rationale
+
+*   Pages like the Admin page were not scrollable because the `#root` element had `height: 100vh` and `overflow: hidden`.
+*   This prevented the container from expanding beyond the viewport height and hid any overflow.
+
+## Implementation Details
+
+*   Modified `src/App.css` [2025-04-14]:
+    *   Changed `height: 100vh` to `min-height: 100vh`.
+    *   Removed `overflow: hidden`.
+
+---
+
+## Decision
+
+*   [2025-04-14 23:40:42] - Correct argument order mismatch in `startRankingPhase` handler call.
+
+## Rationale
+
+*   The `startRankingPhase` handler (`round.handlers.ts`) was passing arguments (`gameId`, `playerId`, `traceId`) to `startRankingPhaseService` in the wrong order.
+*   The service expected (`gameId`, `traceId`, `callerPlayerId`).
+*   This caused the `traceId` to be used as the `callerPlayerId` in the service's authorization check, leading to incorrect "Permission Denied" errors for the actual host.
+
+## Implementation Details
+
+*   Corrected the argument order in the call within `functions/src/round/round.handlers.ts` [2025-04-14].
+
+---
+
+## Decision
+
+*   [2025-04-14 23:37:56] - Implement frontend timer logic in `MusicPlaybackPhase` based on `playbackEndTime` prop, removing automatic start of ranking phase.
+
+## Rationale
+
+*   The listening phase requires a visual timer based on the calculated `playbackEndTime`.
+*   User feedback indicated that the ranking phase should start manually via host action, not automatically when the timer ends.
+*   Initial assumption that `PhaseCard` handled timer logic was incorrect; custom implementation needed.
+
+## Implementation Details
+
+*   Added `playbackEndTime` prop to `MusicPlaybackPhaseProps` [2025-04-14].
+*   Passed `playbackEndTime` from `GameView` to `MusicPlaybackPhase` [2025-04-14].
+*   Implemented `useEffect` hook in `MusicPlaybackPhase` to calculate remaining time, update state (`remainingTime`, `isTimeUp`), and manage `setInterval` [2025-04-14].
+*   Timer cleanup handled in effect's return function.
+*   Removed automatic call to `handleStartRanking` when timer expires.
+*   Passed formatted time string to `PhaseCard`'s `timerDisplay` prop.
+*   Disabled host playback controls and enabled "Start Ranking Phase" button based on `isTimeUp` state [2025-04-14].
+
+---
 ---
 
 ## Decision
@@ -608,3 +714,25 @@ This file records architectural and implementation decisions using a list format
 *   **Features:** Display KPIs, active games list, player stats, view challenges and associated songs (with 30s previews).
 *   **Technology:** Frontend: React, TypeScript, Shadcn UI. Backend: Firebase Cloud Functions, Firestore.
 *   **Plan:** See Architect Mode discussion on 2025-04-13.
+
+---
+
+## Decision
+
+*   [2025-04-15 09:13:00] - Implement QR Code joining via dedicated `/join` route with `gameId` query parameter.
+
+## Rationale
+
+*   The existing QR code in the Lobby points to the base URL (`window.location.href`), making it difficult for users to join the specific game, especially if they have an existing session in `localStorage`.
+*   Using a dedicated route like `/join?gameId=XYZ` is more explicit than adding a query parameter to the root (`/?joinGameId=XYZ`).
+*   This clearly signals the intent to join a specific game and avoids potential conflicts with other root path query parameters.
+
+## Implementation Details
+
+*   **QR Code:** Modify `LobbyPhase.tsx` to generate QR codes pointing to `${window.location.origin}/join?gameId={gameId}`.
+*   **Routing:** Add a new route `<Route path="/join" element={<JoinPage />} />` in `App.tsx`.
+*   **Join Handler:** Create a new component `src/pages/JoinPage.tsx`. This component will:
+    *   Parse `gameId` from the URL query string (`location.search`).
+    *   If `gameId` is found: Clear `localStorage` (`gameId`, `playerId`), set `gameId` in `GameContext`, set `playerId` to `null` in `GameContext`, and navigate the user to `/`.
+    *   If `gameId` is not found, navigate the user to `/`.
+*   **Onboarding:** Modify `OnboardingPage.tsx` to check `GameContext` on load. If `gameId` exists but `playerId` is `null`, pass `initialGameId={gameId}` to the `Onboarding` component. Modify `Onboarding.tsx` to use `initialGameId` to pre-fill the Game ID input in the "Join" tab and potentially set it as the default tab.

@@ -1,11 +1,9 @@
 import React, { useEffect } from 'react'; // Removed useState, useCallback, useRef
 
 // UI Imports (kept)
-import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreativeCard } from "@/components/CreativeCard/CreativeCard";
-import { CreativeButton } from "@/components/CreativeButton/CreativeButton"; // Added import
 import { CreativeSkeleton } from "@/components/CreativeSkeleton/CreativeSkeleton"; // Import the new skeleton
-import { Skeleton } from "@/components/ui/skeleton"; // Keep base skeleton if needed elsewhere, though maybe not
 import logger from '@/lib/logger';
 
 // Removed API imports (now handled by hooks)
@@ -76,7 +74,7 @@ const getDisplayStatus = (status: string | undefined): string => {
 };
 
 
-const GameView: React.FC<GameViewProps> = ({ gameData, playersData, playerId, gameId, roundData, isLoading, error, onStartGame, onSettingsChange }) => { // Add isLoading, error
+const GameView: React.FC<GameViewProps> = ({ gameData, playersData, playerId, gameId, roundData, isLoading, error, onStartGame }) => { // Add isLoading, error
   // Log mount/unmount to detect remounts
   useEffect(() => {
     logger.debug(`[GameView MOUNT] gameId: ${gameId}, playerId: ${playerId}`);
@@ -92,7 +90,6 @@ const GameView: React.FC<GameViewProps> = ({ gameData, playersData, playerId, ga
     searchResults,
     isSearching,
     searchError,
-    isSearchPopoverOpen,
     setIsSearchPopoverOpen,
     handleSearchChange,
     resetSearch,
@@ -120,11 +117,9 @@ const GameView: React.FC<GameViewProps> = ({ gameData, playersData, playerId, ga
   });
 
   const {
-    rankings,
     isSubmittingRanking,
     hasSubmittedRanking,
     rankingError,
-    handleRankChange,
     handleRankingSubmit,
     resetRanking,
   } = useRanking({ gameId, playerId, roundData });
@@ -335,6 +330,7 @@ const GameView: React.FC<GameViewProps> = ({ gameData, playersData, playerId, ga
           submittedSongs={Object.values(roundData?.playerSongs || {})} // Convert map to array
           currentPlayingTrackIndex={roundData?.currentPlayingTrackIndex ?? 0}
           isPlaying={roundData?.isPlaying ?? false}
+          playbackEndTime={roundData?.playbackEndTime ?? null} // Pass the end time
         />
       )}
 

@@ -35,7 +35,12 @@ This file tracks the project's progress using a task list format.
 *   [2025-04-06 23:18:10] - Debugged and fixed various backend build errors and script execution issues.
 *   [2025-07-04 00:11:13] - Completed application-wide refactor (backend, frontend, tests, mocks) to replace Spotify with Deezer using a generic Music Provider interface.
 *   [2025-11-04 17:35:00] - Implemented consistent loading indicators using intermediate Firestore statuses.
-
+*   [2025-04-14 23:40:42] - Fixed "Only Round Host can start ranking phase" bug (incorrect argument order in handler).
+*   [2025-04-14 23:37:56] - Implemented playback timer and fixed playback start logic in `MusicPlaybackPhase`. Removed auto-start ranking.
+*   [2025-04-14 23:34:23] - Fixed page scrolling issue for long content (`#root` CSS).
+*   [2025-04-14 23:04:14] - Fixed `Timestamp.now()` error by importing `Timestamp` directly.
+*   [2025-04-14 22:56:58] - Implemented preview URL refresh and playback end time calculation in `submitSongNominationService`.
+*   [2025-04-14 22:56:58] - Enforced non-null `previewUrl` requirement in types and logic.
 ## Current Tasks
 
 *   [2025-07-04 12:41:05] - Implement Lobby Settings - Backend:
@@ -94,3 +99,4 @@ This file tracks the project's progress using a task list format.
 
 *   Implement Lobby Settings functionality (Backend, Frontend Integration, Game Logic Integration).
 *   Perform verification testing for the Deezer refactor and Lobby Settings.
+*   Address backlog items (e.g., #22 - Playback, #23 - Scrolling).

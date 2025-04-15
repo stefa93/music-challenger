@@ -1,7 +1,6 @@
 import { db } from '../core/firestoreClient'; // Import the initialized Firestore instance
 import * as logger from 'firebase-functions/logger';
-import { AdminChallengeData } from './types'; // Import the specific admin type
-import { ChallengeDocument } from '../challenge/types';
+import { AdminChallengeData } from './types';
 import { RoundDocument, PlayerSongSubmission } from '../round/types'; // Import RoundDocument and PlayerSongSubmission
 
 const GAMES_COLLECTION = 'games';

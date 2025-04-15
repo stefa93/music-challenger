@@ -23,7 +23,8 @@ export interface PlayerSongSubmission {
   name: string; // Track name
   artist: string; // Primary artist name
   submittedAt?: FirestoreTimestamp; // Make optional as predefined songs won't have this
-  previewUrl?: string; // Added preview URL, needed for playback
+  previewUrl: string; // Preview URL is required
+  albumImageUrl?: string; // Optional album art URL
 }
 
 /**
@@ -106,8 +107,11 @@ export interface RoundWinnerData {
  * Represents the data structure for updating a Round document in Firestore.
  * Allows FieldValue for timestamp fields that are set during updates.
  */
-export type RoundUpdateData = Partial<Omit<RoundDocument, 'createdAt' | 'selectionStartTime' | 'rankingStartTime'>> & {
+export type RoundUpdateData = Partial<Omit<RoundDocument, 'createdAt' | 'selectionStartTime' | 'rankingStartTime' | 'playerSongs' | 'finalSongPool' | 'songsForRanking' | 'playbackEndTime'>> & {
     selectionStartTime?: FirestoreTimestamp | FieldValue | null;
     rankingStartTime?: FirestoreTimestamp | FieldValue | null; // Allow FieldValue for updates
-    songsForRanking?: PlayerSongSubmission[]; // Allow updating the final song list
+    playerSongs?: { [playerId: string]: PlayerSongSubmission }; // Allow updating player songs map
+    finalSongPool?: PlayerSongSubmission[]; // Allow updating the final pool (might be same as songsForRanking)
+    songsForRanking?: PlayerSongSubmission[]; // Allow updating the list for ranking
+    playbackEndTime?: FirestoreTimestamp | null; // Allow updating playback end time
 };

@@ -1,4 +1,4 @@
-# User Story: Refactor Populate Challenges Function
+# User Story: Refactor Populate Challenges Function *(Done)
 
 **ID:** 19
 **Type:** Feature (Data)

@@ -51,10 +51,11 @@ interface OnboardingProps {
   onSubmit: SubmitHandler<OnboardingFormData>;
   isLoading: boolean;
   error?: string | null;
+  initialGameId?: string; // Add prop for pre-filled game ID
 }
 
 // This component now acts as the container for the background and the form
-const Onboarding: React.FC<OnboardingProps> = ({ onSubmit, isLoading, error }) => {
+const Onboarding: React.FC<OnboardingProps> = ({ onSubmit, isLoading, error, initialGameId }) => { // Destructure new prop
   return (
     // Container for centering and background effect
     <div className="fixed inset-0 flex items-center justify-center overflow-hidden bg-background">
@@ -107,7 +108,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onSubmit, isLoading, error }) =
 
       {/* Form positioned to the right with margin */}
       <div className="relative w-full max-w-md mx-8 md:mr-16 md:ml-auto">
-        <OnboardingForm onSubmit={onSubmit} isLoading={isLoading} error={error} />
+        <OnboardingForm onSubmit={onSubmit} isLoading={isLoading} error={error} initialGameId={initialGameId} /> {/* Pass prop down */}
       </div>
     </div>
   );

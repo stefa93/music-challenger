@@ -5,12 +5,21 @@
 *
 
 ## Current Focus
+*   [2025-04-15 09:13:26] - Implementing improved QR Code joining functionality using a dedicated `/join?gameId=XYZ` route. See plan in `decisionLog.md`.
+*   [2025-04-15 07:33:16] - Addressing backlog items #22 (Music Playback) and #23 (Page Scrolling).
 *   [2025-04-13 16:46:00] - Implementing Admin Dashboard feature (view-only, `/admin` route, periodic refresh). See plan in Architect Mode discussion and `decisionLog.md`.
-
-*   [2025-09-04 14:02:00] - Implementing temporary authorization fix: Using `playerId` from request data instead of `request.auth.uid` for Cloud Functions. Auditing other handlers for similar issues.
 *   [2025-07-04 12:40:55] - Planning implementation of configurable Lobby settings (UI complete, backend/integration needed).
-*   [2025-04-13 16:08:52] - Predefined Songs Feature: Deployment failed due to TypeScript errors (unused imports in `challenge.handlers.ts` and `round.service.ts`). Next step: Fix errors (Code Mode).
 ## Recent Changes
+*   [2025-04-14 23:40:42] - Fixed "Only Round Host can start ranking phase" bug by correcting argument order in `startRankingPhase` handler call to service.
+*   [2025-04-14 23:37:56] - Implemented frontend timer logic in `MusicPlaybackPhase` using `playbackEndTime`, removed automatic start of ranking phase, and passed timer display to `PhaseCard`.
+*   [2025-04-14 23:34:23] - Fixed page scrolling issue by changing `#root` CSS from `height: 100vh` / `overflow: hidden` to `min-height: 100vh`.
+*   [2025-04-14 23:32:38] - Updated `controlPlaybackService` and handler to support 'play'/'pause' actions for updating `isPlaying` state.
+*   [2025-04-14 23:32:18] - Updated `submitSongNominationService` to set `isPlaying: true` when transitioning to listening phase.
+*   [2025-04-14 23:31:30] - Updated `MusicPlaybackPhaseProps` to include `playbackEndTime`.
+*   [2025-04-14 23:31:02] - Fixed argument order mismatch in `setChallenge` handler call.
+*   [2025-04-14 22:56:58] - Enforced non-null `previewUrl` requirement in `PlayerSongSubmission` and `PredefinedSong` types and adjusted related service logic (`submitSongNominationService`, `populateChallenges`).
+*   [2025-04-14 23:04:14] - Fixed `Timestamp.now()` error by importing `Timestamp` directly from `firebase-admin/firestore` in `round.service.ts`.
+*   [2025-04-14 22:56:58] - Implemented preview URL refresh and `playbackEndTime` calculation in `submitSongNominationService`.
 *   [2025-04-13 16:08:52] - Attempted deployment of Cloud Functions, failed due to TS errors (unused `HttpsError` in `challenge.handlers.ts`, unused `PredefinedSong` import in `round.service.ts`).
 *   [2025-04-13 10:15:28] - Completed frontend logic connection for Predefined Songs: Created `getChallengeDetailsAPI`, updated `useRoundManagement` to fetch songs, updated `GameView` to pass songs, updated `useSongNomination` and `firebaseApi` to handle new submission payload. Updated Memory Bank.
 *   [2025-04-13 10:02:27] - Implemented UI structure changes in `SelectionPhase.tsx` for Predefined Songs feature (Tabs, Suggestions list, Search area integration, Change Selection button). Updated Memory Bank.

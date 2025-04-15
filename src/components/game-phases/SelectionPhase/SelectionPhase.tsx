@@ -8,7 +8,7 @@ import { AlertCircle, ListMusic, Loader2, Search, Timer } from 'lucide-react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Timestamp } from 'firebase/firestore';
 import { CreativeTabs } from '@/components/CreativeTabs/CreativeTabs';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Define props
 interface SelectionPhaseProps {

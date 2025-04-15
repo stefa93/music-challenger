@@ -1,56 +1,14 @@
-import { onCall } from 'firebase-functions/v2/https';
-import * as logger from 'firebase-functions/logger';
+import { onCall } from 'firebase-functions/v2/https'; // Added HttpsError
+import { logger } from 'firebase-functions'; // Corrected logger import
 import { db } from '../core/firestoreClient';
-import axios from 'axios'; // Added axios import
+import { getMusicProvider } from '../music/music.service'; // Import music provider
+import { MusicTrack } from '../music/types'; // Import MusicTrack type
+import { challengeSongList, ChallengeWithSongs } from './challengeSongList'; // Import the curated list
 
-// --- Deezer Helper ---
-const DEEZER_API_BASE_URL = 'https://api.deezer.com';
-const SONGS_PER_CHALLENGE = 15; // Aim to fetch this many songs per challenge
-const MIN_PREVIEW_DURATION = 29; // Deezer previews are usually 30s
+// Removed old Deezer helper constants
 
-interface DeezerTrack {
-  id: number;
-  title: string;
-  duration: number;
-  preview: string;
-  artist: { name: string };
-}
-
-interface DeezerSearchResponse {
-  data: DeezerTrack[];
-  total: number;
-}
-
-interface PredefinedSong {
-  trackId: string;
-  title: string;
-  artist: string;
-  previewUrl: string;
-}
-
-async function searchDeezerTracks(query: string, limit: number): Promise<DeezerTrack[]> {
-  try {
-    const response = await axios.get<DeezerSearchResponse>(`${DEEZER_API_BASE_URL}/search/track`, {
-      params: {
-        q: query,
-        limit: limit * 2, // Fetch more initially to allow filtering
-        order: 'RANKING',
-      },
-      timeout: 5000, // Add a timeout for Deezer requests
-    });
-
-    if (response.data && response.data.data) {
-      return response.data.data.filter(track =>
-        track.preview && track.preview.length > 0 && track.duration >= MIN_PREVIEW_DURATION
-      );
-    }
-    return [];
-  } catch (error) {
-    logger.error(`Error searching Deezer for query "${query}":`, error instanceof Error ? error.message : error);
-    return []; // Return empty array on error to allow processing other challenges
-  }
-}
-// --- End Deezer Helper ---
+// Removed old DeezerTrack, DeezerSearchResponse, PredefinedSong interfaces
+// Removed old searchDeezerTracks function
 interface GetChallengesResponse {
   success: true;
   challenges: string[];
@@ -112,9 +70,10 @@ export const getPredefinedChallenges = onCall(async (request): Promise<GetChalle
  * WARNING: This will overwrite existing documents if called multiple times without checks.
  * Consider adding checks or making it admin-only in a real application.
  */
-export const populateChallenges = onCall({ timeoutSeconds: 300 }, async (request): Promise<ErrorResponse | { success: true, challengesCreated: number, songsAdded: number }> => { // Increased timeout
+export const populateChallenges = onCall({ timeoutSeconds: 540 }, async (request): Promise<ErrorResponse | { success: true, challengesProcessed: number, songsAdded: number }> => { // Increased timeout further for API calls
     const traceId = `populateChallenges_${Date.now()}`;
     logger.info(`[${traceId}] populateChallenges function triggered.`);
+    const musicProvider = getMusicProvider(); // Get the configured music provider
 
     // Basic Auth - Consider making this more robust (e.g., check for admin custom claim)
     // if (!request.auth) {
@@ -124,136 +83,88 @@ export const populateChallenges = onCall({ timeoutSeconds: 300 }, async (request
     // logger.info(`[${traceId}] Triggered by authenticated user: ${request.auth.uid}`);
 
 
-    const challengesList = [
-        "Songs with a color in the title",
-        "Best song to listen to on a rainy day",
-        "Ultimate workout power song",
-        "Most relaxing instrumental track",
-        "Guilty pleasure pop anthem",
-        "Song that makes you want to dance immediately",
-        "Best road trip sing-along song",
-        "A song featuring an epic guitar solo",
-        "Song with a number in the title",
-        "Perfect song for cooking dinner",
-        "A song that tells a great story",
-        "Best song from a movie soundtrack",
-        "Song that reminds you of summer",
-        "A track with amazing bassline",
-        "Song to play air guitar to",
-        "Most uplifting and optimistic song",
-        "A song in a language you don't speak",
-        "Best song to wake up to",
-        "A song featuring a saxophone",
-        "Track with the weirdest sound effects",
-        "Song that feels like a warm hug",
-        "Best cover song you've ever heard",
-        "A song that mentions a city or place",
-        "The ultimate 'power ballad'",
-        "Song with a one-word title",
-        "A track perfect for stargazing",
-        "Song that makes you feel nostalgic",
-        "Best song by a one-hit wonder",
-        "A song featuring a choir",
-        "Track that sounds futuristic",
-        "Song that always makes you laugh",
-        "Best song to listen to with headphones",
-        "A song about animals",
-        "The most dramatic song you know",
-        "Song with a question in the title",
-        "A track that feels like floating",
-        "Song that mentions food or drink",
-        "Best song from the year you were born",
-        "A song featuring whistling",
-        "Track that sounds like it's from another planet",
-        "Song that makes you feel like a superhero",
-        "Best song for a slow dance",
-        "A song about rebellion or protest",
-        "The quietest, most peaceful song",
-        "Song with a person's name in the title",
-        "A track that builds up intensity",
-        "Song that feels like a secret",
-        "Best song to clean your house to",
-        "A song featuring hand claps",
-        "The most epic song intro ever"
-    ];
+    // Use the imported curated list
+    const curatedChallenges: ChallengeWithSongs[] = challengeSongList;
 
-    if (challengesList.length !== 50) {
-        logger.warn(`[${traceId}] Expected 50 challenges, but found ${challengesList.length}. Proceeding anyway.`);
-    }
+    logger.info(`[${traceId}] Found ${curatedChallenges.length} challenges in the curated list.`);
 
     try {
-        const batch = db.batch();
+        // Batch is not used in the new sequential approach
         const challengesCollection = db.collection('challenges');
+        let totalSongsAdded = 0;
+        let challengesProcessed = 0;
 
-        logger.info(`[${traceId}] Preparing batch write for ${challengesList.length} challenges...`);
+        logger.info(`[${traceId}] Processing ${curatedChallenges.length} challenges from the curated list...`);
 
-        // Optional: Delete existing challenges first if you want a clean slate
-        // const existingDocs = await challengesCollection.limit(500).get(); // Limit deletion batch size
-        // existingDocs.forEach(doc => batch.delete(doc.ref));
-        // logger.info(`[${traceId}] Added ${existingDocs.size} deletions to batch.`);
+        // Process challenges sequentially to manage API rate limits and Firestore writes
+        for (const challenge of curatedChallenges) {
+            const challengeText = challenge.text;
+            const songsToFind = challenge.songs;
+            const challengeDocId = challengeText.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''); // Generate a consistent ID
+            const docRef = challengesCollection.doc(challengeDocId);
 
-        challengesList.forEach((challengeText, index) => {
-            // Use auto-generated IDs
-            const docRef = challengesCollection.doc();
-            batch.set(docRef, { text: challengeText });
-        });
+            logger.info(`[${traceId}] Processing challenge: "${challengeText}" (ID: ${challengeDocId})`);
 
-        logger.info(`[${traceId}] Committing batch write...`);
-        await batch.commit();
-        logger.info(`[${traceId}] Successfully created ${challengesList.length} challenge documents.`);
+            const predefinedSongs: MusicTrack[] = [];
+            let songsFoundForThisChallenge = 0;
 
-        // --- Phase 2: Fetch challenges and add predefined songs ---
-        logger.info(`[${traceId}] Fetching created challenges to add songs...`);
-        const challengesSnapshot = await challengesCollection.get();
-        let songsAddedCount = 0;
-        const updatePromises: Promise<void>[] = [];
+            for (const songIdentifier of songsToFind) {
+                const query = `${songIdentifier.title} ${songIdentifier.artist}`;
+                logger.debug(`[${traceId}] Searching for song: "${query}" for challenge "${challengeText}"`);
 
-        logger.info(`[${traceId}] Processing ${challengesSnapshot.size} challenges for song population...`);
+                // Add delay before each API call
+                await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
 
-        for (const doc of challengesSnapshot.docs) {
-            const challengeText = doc.data().text as string;
-            const docRef = doc.ref;
+                try {
+                    const searchResults = await musicProvider.searchTracks(query, traceId, true, 1); // Limit to 1 for best match
 
-            if (!challengeText) {
-                logger.warn(`[${traceId}] Skipping challenge ${doc.id} due to missing text.`);
-                continue;
+                    if (searchResults.length > 0) {
+                        const track = searchResults[0];
+                        if (track.previewUrl) {
+                            // Map to the structure needed for Firestore (subset of MusicTrack)
+                            const songData: Partial<MusicTrack> & { title: string, artist: string } = { // Use Partial for flexibility if needed, ensure core fields
+                                trackId: track.trackId,
+                                title: track.name, // Map name to title
+                                artist: track.artistName, // Map artistName to artist
+                                previewUrl: track.previewUrl,
+                                // Optionally include other fields like albumName, albumImageUrl if desired
+                                albumName: track.albumName,
+                                albumImageUrl: track.albumImageUrl,
+                            };
+                            predefinedSongs.push(songData as MusicTrack); // Add the found song
+                            songsFoundForThisChallenge++;
+                            logger.debug(`[${traceId}] Found song "${track.name}" by ${track.artistName} with preview for challenge "${challengeText}".`);
+                        } else {
+                            logger.warn(`[${traceId}] Song "${track.name}" by ${track.artistName} found for challenge "${challengeText}", but skipped due to missing previewUrl.`);
+                        }
+                    } else {
+                        logger.warn(`[${traceId}] No song found for query "${query}" for challenge "${challengeText}".`);
+                    }
+                } catch (searchError) {
+                    logger.error(`[${traceId}] Error searching for song "${query}" for challenge "${challengeText}":`, searchError);
+                    // Continue to the next song even if one search fails
+                }
             }
 
-            // Add a small delay to avoid hitting Deezer rate limits too hard
-            await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+            try {
+                // Use set with merge: true to create or update the document
+                await docRef.set({
+                    text: challengeText,
+                    predefinedSongs: predefinedSongs
+                }, { merge: true });
 
-            logger.debug(`[${traceId}] Searching Deezer for challenge: "${challengeText}"`);
-            const tracks = await searchDeezerTracks(challengeText, SONGS_PER_CHALLENGE);
-
-            if (tracks.length > 0) {
-                const predefinedSongs: PredefinedSong[] = tracks
-                    .slice(0, SONGS_PER_CHALLENGE) // Limit to desired number
-                    .map(track => ({
-                        trackId: track.id.toString(),
-                        title: track.title,
-                        artist: track.artist.name,
-                        previewUrl: track.preview,
-                    }));
-
-                logger.debug(`[${traceId}] Adding ${predefinedSongs.length} songs to challenge ${doc.id}.`);
-                // Use update instead of set to avoid overwriting text if run again
-                updatePromises.push(docRef.update({ predefinedSongs }).then(() => {
-                    songsAddedCount += predefinedSongs.length;
-                }).catch(updateError => {
-                    logger.error(`[${traceId}] Error updating challenge ${doc.id} with songs:`, updateError);
-                    // Continue processing other challenges even if one fails
-                }));
-            } else {
-                 logger.warn(`[${traceId}] No suitable songs found for challenge ${doc.id} ("${challengeText}").`);
-                 // Optionally update with empty array: updatePromises.push(docRef.update({ predefinedSongs: [] }));
+                logger.info(`[${traceId}] Successfully processed challenge "${challengeText}". Added ${songsFoundForThisChallenge} songs.`);
+                totalSongsAdded += songsFoundForThisChallenge;
+                challengesProcessed++;
+            } catch (writeError) {
+                 logger.error(`[${traceId}] Error writing challenge "${challengeText}" (ID: ${challengeDocId}) to Firestore:`, writeError);
+                 // Continue to the next challenge even if one write fails
             }
-        }
+        } // End of challenges loop
 
-        logger.info(`[${traceId}] Waiting for ${updatePromises.length} challenge song updates to complete...`);
-        await Promise.all(updatePromises);
-        logger.info(`[${traceId}] Finished updating challenges. Total songs added across all challenges: ${songsAddedCount}`);
+        logger.info(`[${traceId}] Finished processing all challenges. Processed: ${challengesProcessed}, Total songs added: ${totalSongsAdded}`);
 
-        return { success: true, challengesCreated: challengesList.length, songsAdded: songsAddedCount };
+        return { success: true, challengesProcessed: challengesProcessed, songsAdded: totalSongsAdded };
 
     } catch (error) {
         logger.error(`[${traceId}] Error during challenge population process:`, error);
@@ -261,3 +172,6 @@ export const populateChallenges = onCall({ timeoutSeconds: 300 }, async (request
         // throw new HttpsError('internal', 'Failed during challenge population process.');
     }
 });
+
+// Removed PredefinedSong interface if MusicTrack is used everywhere now
+// Removed DeezerTrack and DeezerSearchResponse interfaces if searchDeezerTracks is removed

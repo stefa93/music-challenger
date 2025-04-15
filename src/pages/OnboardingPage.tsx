@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react'; // Added useEffect
 import { useNavigate } from 'react-router-dom';
 import { useGameContext } from '@/contexts/GameContext';
 import logger from '@/lib/logger';
@@ -8,7 +8,7 @@ import { SubmitHandler } from 'react-hook-form'; // Import SubmitHandler
 
 const OnboardingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { setGameId, setPlayerId, setIsLoading, setError, isLoading, error } = useGameContext(); // Get isLoading and error
+  const { gameId, playerId, setGameId, setPlayerId, setIsLoading, setError, isLoading, error } = useGameContext(); // Added gameId, playerId
 
   // Single submit handler for the form
   const onSubmit: SubmitHandler<OnboardingFormData> = async (data) => {
@@ -71,10 +71,18 @@ const OnboardingPage: React.FC = () => {
     }
   };
 
+  // Check if we arrived via join link (gameId set, playerId null)
+  const initialGameId = gameId && !playerId ? gameId : undefined;
+
   return (
     <div className="container mx-auto p-4 max-w-md">
-      {/* Pass the onSubmit handler, isLoading, and error state */}
-      <Onboarding onSubmit={onSubmit} isLoading={isLoading} error={error} />
+      {/* Pass the onSubmit handler, isLoading, error state, and initialGameId */}
+      <Onboarding
+        onSubmit={onSubmit}
+        isLoading={isLoading}
+        error={error}
+        initialGameId={initialGameId}
+      />
     </div>
   );
 };

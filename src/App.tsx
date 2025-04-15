@@ -9,6 +9,7 @@ import { AuthProvider } from '@/contexts/AuthContext'; // Only need Provider her
 import OnboardingPage from '@/pages/OnboardingPage';
 import GamePage from '@/pages/GamePage';
 import AdminPage from '@/pages/AdminPage'; // Import AdminPage
+import JoinPage from '@/pages/JoinPage'; // Import JoinPage
 // Removed CallbackPage import
 
 
@@ -50,6 +51,7 @@ function App() {
         <Route path="/game/:gameIdParam" element={<GamePage />} />
         {/* Removed /callback route */}
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/join" element={<JoinPage />} />
         {/* TODO: Add a 404 Not Found route */}
       </Routes>
     </div>

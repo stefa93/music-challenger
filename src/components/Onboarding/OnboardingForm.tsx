@@ -22,9 +22,10 @@ interface OnboardingFormProps {
   onSubmit: SubmitHandler<OnboardingFormData>;
   isLoading: boolean;
   error?: string | null;
+  initialGameId?: string; // Add prop for pre-filled game ID
 }
 
-export const OnboardingForm: React.FC<OnboardingFormProps> = ({ onSubmit, isLoading, error }) => {
+export const OnboardingForm: React.FC<OnboardingFormProps> = ({ onSubmit, isLoading, error, initialGameId }) => { // Destructure new prop
   const {
     register,
     handleSubmit,
@@ -35,8 +36,8 @@ export const OnboardingForm: React.FC<OnboardingFormProps> = ({ onSubmit, isLoad
   } = useForm<OnboardingFormData>({
     defaultValues: {
       displayName: '',
-      gameId: '',
-      action: 'create',
+      gameId: initialGameId || '', // Use initialGameId if provided
+      action: initialGameId ? 'join' : 'create', // Default to join tab if ID provided
     },
     mode: 'onChange',
   });
@@ -96,7 +97,7 @@ export const OnboardingForm: React.FC<OnboardingFormProps> = ({ onSubmit, isLoad
             </div>
 
             <CreativeTabs
-               defaultValue="create"
+               defaultValue={initialGameId ? 'join' : 'create'} // Default to join tab if ID provided
                className="w-full"
                onValueChange={(value: string) => {
                   setValue('action', value as 'create' | 'join');

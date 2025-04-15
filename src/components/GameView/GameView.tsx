@@ -1,13 +1,14 @@
-import React, { useEffect } from 'react'; // Removed useState, useCallback, useRef
+import React, { useEffect, useState } from 'react'; // Added useState
 
 // UI Imports (kept)
 import { CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreativeCard } from "@/components/CreativeCard/CreativeCard";
 import { CreativeSkeleton } from "@/components/CreativeSkeleton/CreativeSkeleton"; // Import the new skeleton
 import logger from '@/lib/logger';
+import { submitRankingAPI } from '@/services/firebaseApi'; // Import the API function
 
-// Removed API imports (now handled by hooks)
-// import { searchSpotifyTracksAPI, submitSongNominationAPI, submitRankingAPI, startNextRoundAPI, startSelectionPhaseAPI, TrackDetailsPayload } from '@/services/firebaseApi';
+// Removed other API imports (now handled by hooks)
+// import { searchSpotifyTracksAPI, submitSongNominationAPI, startNextRoundAPI, startSelectionPhaseAPI, TrackDetailsPayload } from '@/services/firebaseApi';
 // import { SpotifyTrack } from '@/types/spotify'; // Moved to hooks where needed
 
 // Phase Component Imports (kept)
@@ -23,7 +24,7 @@ import { updateGameSettingsService } from '@/services/firebaseApi'; // Import th
 // Import Custom Hooks
 import { useMusicSearch } from '@/hooks/useMusicSearch'; // Renamed hook import
 import { useSongNomination } from '@/hooks/useSongNomination';
-import { useRanking } from '@/hooks/useRanking';
+// import { useRanking } from '@/hooks/useRanking'; // Remove useRanking import
 import { useRoundManagement } from '@/hooks/useRoundManagement';
 
 // Prop Types (kept)
@@ -116,13 +117,19 @@ const GameView: React.FC<GameViewProps> = ({ gameData, playersData, playerId, ga
     setIsSearchPopoverOpen, // Connect hooks
   });
 
-  const {
-    isSubmittingRanking,
-    hasSubmittedRanking,
-    rankingError,
-    handleRankingSubmit,
-    resetRanking,
-  } = useRanking({ gameId, playerId, roundData });
+  // Remove useRanking hook instantiation
+  // const {
+  //   isSubmittingRanking,
+  //   hasSubmittedRanking,
+  //   rankingError,
+  //   handleRankingSubmit,
+  //   resetRanking,
+  // } = useRanking({ gameId, playerId, roundData });
+
+  // Add state for ranking submission directly in GameView
+  const [isSubmittingRanking, setIsSubmittingRanking] = useState(false);
+  const [hasSubmittedRanking, setHasSubmittedRanking] = useState(false);
+  const [rankingError, setRankingError] = useState<string | null>(null);
 
   // Convert currentRound number to string for roundId prop
   const currentRoundId = gameData?.currentRound ? String(gameData.currentRound) : null;
@@ -157,12 +164,16 @@ const GameView: React.FC<GameViewProps> = ({ gameData, playersData, playerId, ga
       logger.debug(`Round changed to ${gameData.currentRound}. Resetting phase-specific states.`);
       resetSearch();
       resetNomination();
-      resetRanking();
+      // resetRanking(); // Remove call to resetRanking from the removed hook
+      // Reset local ranking state instead
+      setIsSubmittingRanking(false);
+      setHasSubmittedRanking(false);
+      setRankingError(null);
       // resetRoundManagement(); // Consider if this needs conditional execution based on gameData presence
     }
     // Dependencies remain the same, but the effect now runs unconditionally.
     // The logic inside handles the case where gameData might be null initially.
-  }, [gameData?.currentRound, resetSearch, resetNomination, resetRanking]);
+  }, [gameData?.currentRound, resetSearch, resetNomination]); // Removed resetRanking dependency
 
 
   // Handle error state passed from parent
@@ -326,8 +337,8 @@ const GameView: React.FC<GameViewProps> = ({ gameData, playersData, playerId, ga
           playerId={playerId}
           isHost={isHost}
           currentRound={gameData.currentRound}
-          // Extract data from roundData, provide defaults
-          submittedSongs={Object.values(roundData?.playerSongs || {})} // Convert map to array
+          // Pass the correct songsForRanking list
+          songsForRanking={roundData?.songsForRanking || []} // Pass the correct list, default to empty array
           currentPlayingTrackIndex={roundData?.currentPlayingTrackIndex ?? 0}
           isPlaying={roundData?.isPlaying ?? false}
           playbackEndTime={roundData?.playbackEndTime ?? null} // Pass the end time
@@ -342,7 +353,24 @@ const GameView: React.FC<GameViewProps> = ({ gameData, playersData, playerId, ga
           isSubmittingRanking={isSubmittingRanking}
           hasSubmittedRanking={hasSubmittedRanking}
           rankingError={rankingError}
-          onRankingSubmit={() => handleRankingSubmit()}
+          // Pass the API call function and state setters/values
+          onRankingSubmit={async (rankings) => {
+              setRankingError(null);
+              setIsSubmittingRanking(true);
+              setHasSubmittedRanking(false); // Reset submitted status for new attempt
+              const traceId = `submitRanking_${Date.now()}`;
+              try {
+                  if (!gameId || !playerId) throw new Error("Missing game/player ID");
+                  await submitRankingAPI({ gameId, playerId, rankings, traceId });
+                  setHasSubmittedRanking(true);
+              } catch (error: any) {
+                  logger.error(`[${traceId}] Error submitting rankings from GameView:`, error);
+                  setRankingError(error.message || "Failed to submit rankings.");
+                  setHasSubmittedRanking(false); // Ensure submitted status is false on error
+              } finally {
+                  setIsSubmittingRanking(false);
+              }
+          }}
           // Pass relevant settings and round data for timer
           timeLimit={gameData.settings?.rankingTimeLimit ?? null}
         // startTime is now derived internally from roundData in RankingPhase

@@ -719,6 +719,102 @@ This file records architectural and implementation decisions using a list format
 
 ## Decision
 
+*   [2025-04-15 10:43:20] - Refactor scoring logic (`calculateScoresService`) to use `trackId` consistently and base points calculation on the total number of songs ranked (`songsForRanking.length`).
+
+## Rationale
+
+*   The previous scoring logic incorrectly used song names as keys and based point calculation (N points for 1st) on the number of unique *player-submitted* songs, not the total number presented for ranking (which includes added predefined songs).
+*   This ensures scores accurately reflect ranking within the full set of songs and aligns with the data format used in ranking submission (which uses `trackId`).
+*   Duplicate penalty logic (based on `trackIdOccurrences`) was confirmed to be correct.
+
+## Implementation Details
+
+*   Modified `functions/src/scoring/scoring.service.ts` to:
+    *   Identify unique songs and occurrences using `trackId`.
+    *   Calculate rank sums using `trackId`.
+    *   Calculate points per rank using `songsForRanking.length` as the base `N`.
+    *   Assign points to `trackPoints` map using `trackId`.
+    *   Calculate player base scores by looking up their submitted `trackId` in `trackPoints`.
+
+---
+
+## Decision
+
+*   [2025-04-15 10:43:20] - Fix `submitSongNominationService` to ensure `songsForRanking` contains only unique tracks and correctly handles Firestore transaction read/write order.
+
+## Rationale
+
+*   The initial assembly of the song pool incorrectly included duplicate tracks if multiple players submitted the same song.
+*   A Firestore transaction error occurred because the challenge document (needed for predefined songs) was read *after* the player's submission was written.
+*   The fix ensures the final list for playback/ranking contains only unique tracks and respects transaction rules.
+
+## Implementation Details
+
+*   Modified `functions/src/round/round.service.ts` (`submitSongNominationService`) to:
+    *   Pre-fetch the `challengeDoc` within the transaction *before* writing the player submission, but only if it's potentially the last submission.
+    *   Initialize `finalSongPool` using only unique tracks from `refreshedPlayerSongs` before adding unique predefined songs.
+
+---
+
+## Decision
+
+*   [2025-04-15 10:43:20] - Fix `startNextRoundService` to allow host challenge selection in all rounds.
+
+## Rationale
+
+*   The service previously used placeholder text or random selection for challenges in subsequent rounds, contradicting the requirement for the host to always select the challenge.
+*   The fix ensures consistency with the Round 1 flow.
+
+## Implementation Details
+
+*   Modified `functions/src/round/round.service.ts` (`startNextRoundService`) to:
+    *   Remove logic that automatically selected a challenge.
+    *   Set the `challenge` field to `null` in both the game and the new round document updates.
+
+---
+
+## Decision
+
+*   [2025-04-15 10:43:20] - Refactor `RankingPhase.tsx` to use correct data source (`songsForRanking`), submit correct data format, and fix UI bugs.
+
+## Rationale
+
+*   The component was incorrectly using `playerSongs` instead of `songsForRanking` to display the list.
+*   It submitted an array of track IDs instead of the required `{ trackId: rank }` object map.
+*   Dragging was incorrectly disabled when the timer expired.
+*   The `useRanking` hook was redundant and causing validation errors.
+
+## Implementation Details
+
+*   Removed `useRanking` hook usage from `GameView.tsx`.
+*   Added local state management (`isSubmittingRanking`, `hasSubmittedRanking`, `rankingError`) to `GameView.tsx`.
+*   Passed `submitRankingAPI` and state down to `RankingPhase.tsx`.
+*   Modified `RankingPhase.tsx` to:
+    *   Use `roundData.songsForRanking` as the source for the sortable list.
+    *   Use `trackId` as the key for sortable items.
+    *   Construct the correct `{ trackId: rank }` object map in `handleSubmit`.
+    *   Remove the condition disabling drag-and-drop when `isTimeUp`.
+
+---
+
+## Decision
+
+*   [2025-04-15 10:43:20] - Fix frontend error in `RoundFinishedPhase.tsx` related to winner data structure.
+
+## Rationale
+
+*   The component expected `winnerNames` in the `roundWinnerData` prop, but the backend provides `winnerPlayerIds`.
+*   This caused a runtime error when trying to access `.length` on the undefined `winnerNames`.
+
+## Implementation Details
+
+*   Updated the `RoundWinnerData` interface in `RoundFinishedPhase.tsx` to expect `winnerPlayerIds`.
+*   Modified the `getWinnerNames` helper function to use `winnerPlayerIds` and look up corresponding names in the `roundResults` array.
+
+---
+
+## Decision
+
 *   [2025-04-15 09:13:00] - Implement QR Code joining via dedicated `/join` route with `gameId` query parameter.
 
 ## Rationale

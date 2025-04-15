@@ -10,7 +10,7 @@ import * as challengeData from "../challenge/challenge.data"; // Added challenge
 import { GameStatus, Game } from "../game/types";
 import { TraceId } from "../core/types";
 import { PlayerSongSubmission, RoundUpdateData, SongNominationInput } from "./types"; // Added SongNominationInput
-// Removed unused PredefinedSong import from "../challenge/types"
+import { ChallengeDocument, PredefinedSong } from "../challenge/types"; // Import needed types
 
 /**
  * Submits a player's rankings for the songs in the current round.
@@ -39,11 +39,7 @@ export async function submitRankingService(
   if (!rankings || typeof rankings !== 'object' || Object.keys(rankings).length === 0) {
     throw new HttpsError("invalid-argument", "Rankings object is required and cannot be empty.");
   }
-  // TODO: Add more specific validation for the rankings object:
-  // - Check if all required songs are ranked.
-  // - Check if ranks are consecutive and valid numbers.
-  // - Check if player ranked their own song (if applicable).
-  // --- End Input Validation ---
+  // --- End Basic Input Validation ---
 
   try {
     await db.runTransaction(async (transaction) => {
@@ -84,6 +80,37 @@ export async function submitRankingService(
       if (rankingExists) {
         throw new HttpsError("already-exists", `Player ${playerId} has already submitted rankings for round ${currentRoundNumber}.`);
       }
+      // --- Detailed Ranking Validation ---
+      const songsToRank = currentRound.songsForRanking?.filter(
+        song => song.trackId !== currentRound.playerSongs?.[playerId]?.trackId
+      ) || [];
+      const numSongsToRank = songsToRank.length;
+      const submittedTrackIds = Object.keys(rankings);
+      const submittedRanks = Object.values(rankings);
+
+      // 1. Check if the correct number of songs were ranked
+      if (submittedTrackIds.length !== numSongsToRank) {
+        logger.warn(`[${traceId}] Invalid ranking submission: Expected ${numSongsToRank} songs, but received ${submittedTrackIds.length}.`, { expectedTrackIds: songsToRank.map(s => s.trackId), submittedTrackIds });
+        throw new HttpsError("invalid-argument", `Invalid ranking submission: Please rank all ${numSongsToRank} songs.`);
+      }
+
+      // 2. Check if all expected track IDs are present
+      const expectedTrackIdSet = new Set(songsToRank.map(song => song.trackId));
+      const submittedTrackIdSet = new Set(submittedTrackIds);
+      if (!submittedTrackIds.every(id => expectedTrackIdSet.has(id)) || !songsToRank.every(song => submittedTrackIdSet.has(song.trackId))) {
+         logger.warn(`[${traceId}] Invalid ranking submission: Submitted track IDs do not match expected track IDs.`, { expectedTrackIds: Array.from(expectedTrackIdSet), submittedTrackIds });
+         throw new HttpsError("invalid-argument", "Invalid ranking submission: Submitted songs do not match the songs presented for ranking.");
+      }
+
+      // 3. Check if ranks are consecutive numbers from 1 to N
+      const expectedRanks = new Set(Array.from({ length: numSongsToRank }, (_, i) => i + 1));
+      const uniqueSubmittedRanks = new Set(submittedRanks);
+      if (uniqueSubmittedRanks.size !== numSongsToRank || !submittedRanks.every(rank => expectedRanks.has(rank))) {
+         logger.warn(`[${traceId}] Invalid ranking submission: Ranks are not consecutive from 1 to ${numSongsToRank}.`, { submittedRanks });
+         throw new HttpsError("invalid-argument", `Invalid ranking submission: Please use ranks 1 through ${numSongsToRank} exactly once.`);
+      }
+      // --- End Detailed Ranking Validation ---
+
       // --- End Business Rule Checks ---
 
 
@@ -211,9 +238,8 @@ export async function startNextRoundService(
       }
 
 
-      // TODO: Implement more dynamic challenge generation
-      const nextChallenge = `Challenge for Round ${nextRoundNumber}!`;
-      logger.debug(`[${traceId}] Transaction (Start Next Round Service ${gameId}): Determined next round: ${nextRoundNumber}, host: ${nextHostId}`);
+      // Challenge is NOT set here; it will be set by the host in the announcement phase.
+      logger.debug(`[${traceId}] Transaction (Start Next Round Service ${gameId}): Determined next round: ${nextRoundNumber}, host: ${nextHostId}. Challenge will be set by host.`);
       // --- End Determine Next Round Details ---
 
 
@@ -224,18 +250,18 @@ export async function startNextRoundService(
       gameData.updateGameDetails(gameId, { status: 'transitioning_to_announcing' as GameStatus }, traceId, transaction);
       logger.debug(`[${traceId}] Transaction: Intermediate status set.`);
 
-      // Step 2: Set final status and round details
+      // Step 2: Set final status and round details (set challenge to null)
       const gameUpdates = {
         currentRound: nextRoundNumber,
         roundHostPlayerId: nextHostId,
-        challenge: nextChallenge, // Challenge is now set here
+        challenge: null, // Set challenge to null, host will set it
         status: `round${nextRoundNumber}_announcing` as GameStatus, // Changed to announcing
       };
       gameData.updateGameDetails(gameId, gameUpdates, traceId, transaction); // Corrected order
 
-      // 2. Create New Round Document
+      // 2. Create New Round Document (with null challenge)
       const nextRoundData = {
-        challenge: nextChallenge,
+        challenge: null, // Challenge starts as null
         hostPlayerId: nextHostId,
         status: "announcing" as const, // Changed: Round starts in announcement phase
         gameSongs: [],
@@ -488,6 +514,16 @@ export async function submitSongNominationService(
       // --- End Prepare Submission Data ---
 
 
+      // --- Pre-fetch challenge doc if this might be the last submission ---
+      let challengeDoc: ChallengeDocument | null = null; // Use imported ChallengeDocument type
+      if (existingSubmissionCount + 1 === activePlayerCount && activePlayerCount > 0 && currentGame.challenge) {
+          logger.debug(`[${traceId}] Potentially last submission, pre-fetching challenge doc for: "${currentGame.challenge}"`);
+          challengeDoc = await challengeData.getChallengeByText(currentGame.challenge, traceId, transaction);
+          logger.debug(`[${traceId}] Pre-fetch result: ${challengeDoc ? 'Found challenge doc' : 'Not Found'}`);
+      } else if (existingSubmissionCount + 1 === activePlayerCount && activePlayerCount > 0 && !currentGame.challenge) {
+          logger.warn(`[${traceId}] Potentially last submission, but game has no challenge text. Cannot pre-fetch challenge doc.`);
+      }
+
       // --- Update State (ALL WRITES) ---
       // 1. Add the current player's song submission
       logger.debug(`[${traceId}] Transaction: Writing song submission for player ${playerId}.`, { submissionData });
@@ -568,32 +604,53 @@ export async function submitSongNominationService(
 
         // --- Assemble Final Song Pool using refreshed data ---
         const refreshedPlayerSongs = Object.values(updatedPlayerSongs).filter(Boolean) as PlayerSongSubmission[]; // Filter out nulls
-        const playerNominatedTrackIds = new Set(refreshedPlayerSongs.map(song => song.trackId));
-        let finalSongPool: PlayerSongSubmission[] = [...refreshedPlayerSongs]; // Start with refreshed player songs
+
+        // Ensure final pool only contains unique player songs initially
+        const uniquePlayerSongsMap = new Map<string, PlayerSongSubmission>();
+        refreshedPlayerSongs.forEach(song => {
+            if (!uniquePlayerSongsMap.has(song.trackId)) {
+                uniquePlayerSongsMap.set(song.trackId, song);
+            }
+        });
+        const uniquePlayerSongs = Array.from(uniquePlayerSongsMap.values());
+        const playerNominatedTrackIds = new Set(uniquePlayerSongs.map(song => song.trackId)); // Use unique list for filtering predefined
+        let finalSongPool: PlayerSongSubmission[] = [...uniquePlayerSongs]; // Start with UNIQUE refreshed player songs
 
         const neededSongs = Math.max(0, 5 - finalSongPool.length); // Ensure minimum 5 songs
         logger.debug(`[${traceId}] Assembling final pool: ${finalSongPool.length} refreshed player songs, need ${neededSongs} more.`);
 
         if (neededSongs > 0) {
+          logger.debug(`[${traceId}] Attempting to add ${neededSongs} predefined songs.`); // Log: Entering block
           if (!currentGame.challenge) {
+            logger.error(`[${traceId}] Cannot add predefined songs: Game object is missing the challenge text.`);
             throw new HttpsError("failed-precondition", "Cannot assemble final pool: Game has no current challenge text.");
           }
-          const challengeDoc = await challengeData.getChallengeByText(currentGame.challenge, traceId, transaction);
+          logger.debug(`[${traceId}] Current game challenge text: "${currentGame.challenge}"`); // Log: Challenge text
+          // Use the pre-fetched challengeDoc instead of reading again
+          // const challengeDoc = await challengeData.getChallengeByText(currentGame.challenge, traceId, transaction); // REMOVED READ
+          logger.debug(`[${traceId}] Using pre-fetched challenge doc result: ${challengeDoc ? 'Found challenge doc' : 'Not Found'}`); // Log: Using pre-fetched result
           if (!challengeDoc || !challengeDoc.predefinedSongs || challengeDoc.predefinedSongs.length === 0) {
-            logger.warn(`[${traceId}] Cannot add predefined songs: Challenge details or predefined songs not found/empty for "${currentGame.challenge}". Pool might be < 5.`);
+            logger.warn(`[${traceId}] Cannot add predefined songs: Challenge details or predefined songs not found/empty for "${currentGame.challenge}". Pool might be < 5.`, { challengeDocExists: !!challengeDoc, predefinedSongsExist: !!challengeDoc?.predefinedSongs, predefinedSongsLength: challengeDoc?.predefinedSongs?.length }); // Log: Reason for not adding
           } else {
+            logger.debug(`[${traceId}] Found ${challengeDoc.predefinedSongs.length} predefined songs in challenge doc.`); // Log: Found predefined songs
             const availablePredefined = challengeDoc.predefinedSongs.filter(
-              song => !playerNominatedTrackIds.has(song.trackId) // Exclude songs already nominated
+              (song: PredefinedSong) => !playerNominatedTrackIds.has(song.trackId) // Exclude songs already nominated
             );
+            logger.debug(`[${traceId}] Player nominated track IDs:`, Array.from(playerNominatedTrackIds)); // Log: Player track IDs
+            logger.debug(`[${traceId}] Found ${availablePredefined.length} available predefined songs after filtering.`); // Log: Available predefined count
 
             if (availablePredefined.length < neededSongs) {
                logger.warn(`[${traceId}] Not enough unique predefined songs available (${availablePredefined.length}) to reach 5 total songs. Adding all available.`);
+            }
+            // Log available predefined songs for inspection
+            if (availablePredefined.length > 0) {
+               logger.debug(`[${traceId}] Available predefined songs (before shuffle/slice):`, availablePredefined.map((s: PredefinedSong) => ({ id: s.trackId, title: s.title, artist: s.artist, hasPreview: !!s.previewUrl })));
             }
 
             // Shuffle available predefined songs to add variety
             const shuffledPredefined = availablePredefined.sort(() => 0.5 - Math.random());
             // Map predefined songs to PlayerSongSubmission structure
-            const songsToAdd = shuffledPredefined.slice(0, neededSongs).map(pSong => ({
+            const songsToAdd = shuffledPredefined.slice(0, neededSongs).map((pSong: PredefinedSong) => ({
                 trackId: pSong.trackId,
                 name: pSong.title, // Map title to name
                 artist: pSong.artist,
@@ -604,10 +661,10 @@ export async function submitSongNominationService(
 
             // Add predefined songs to the pool
             finalSongPool = [...finalSongPool, ...songsToAdd];
-            logger.debug(`[${traceId}] Added ${songsToAdd.length} predefined songs to the pool.`);
+            logger.debug(`[${traceId}] Added ${songsToAdd.length} predefined songs to the pool.`, { songsToAdd: songsToAdd.map((s: PlayerSongSubmission) => s.trackId) }); // Log: Added songs details (Type here is PlayerSongSubmission after mapping)
 
             // Log details of added predefined songs
-            songsToAdd.forEach(song => {
+            songsToAdd.forEach((song: PlayerSongSubmission) => { // Type here is PlayerSongSubmission after mapping
                 logger.debug(`[${traceId}] Added predefined song: ${song.name} by ${song.artist} (ID: ${song.trackId})`);
             });
           }
@@ -615,7 +672,7 @@ export async function submitSongNominationService(
 
         // Shuffle the final pool before saving
         finalSongPool = finalSongPool.sort(() => 0.5 - Math.random());
-        logger.debug(`[${traceId}] Final song pool assembled with ${finalSongPool.length} songs.`);
+        logger.debug(`[${traceId}] Final song pool assembled with ${finalSongPool.length} songs.`, { finalPoolTrackIds: finalSongPool.map(s => s.trackId) }); // Log: Final pool IDs
 
         // 3. Update round status, song pool, player songs (with refreshed URLs), and playback end time
         const playbackEndTime = minExpiration !== Infinity

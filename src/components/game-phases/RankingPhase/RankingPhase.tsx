@@ -23,30 +23,40 @@ import { PhaseCard } from "@/components/PhaseCard/PhaseCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Timestamp } from 'firebase/firestore'; // Import Timestamp for prop type
-// Define types
-interface SongData {
+// Define types matching backend structure
+// (Ideally import from a shared types file)
+interface PlayerSongSubmission {
+  trackId: string;
   name: string;
   artist: string;
-  // Add album art URL if available from playerSongs
-  albumArtUrl?: string;
+  previewUrl: string; // May not be needed here, but part of the type
+  albumImageUrl?: string;
+  submittedAt?: Timestamp; // Optional on backend type
+}
+
+// Keep SongData for simplicity within the component if needed, or use PlayerSongSubmission directly
+interface SongData extends Omit<PlayerSongSubmission, 'trackId' | 'previewUrl' | 'submittedAt'> {
+  // Inherits name, artist, albumImageUrl
 }
 
 // Type for items in the sortable list
+// Type for items in the sortable list
 interface SortableSongItem {
-  id: string; // Player ID who submitted the song
-  data: SongData;
+  id: string; // Use trackId for sorting uniqueness
+  data: PlayerSongSubmission; // Use the full submission data
 }
 
 interface RankingPhaseProps {
   playerId: string; // Current user's player ID
   roundData: {
-    playerSongs?: { [playerId: string]: SongData };
+    playerSongs?: { [playerId: string]: PlayerSongSubmission }; // Use full type
+    songsForRanking?: PlayerSongSubmission[]; // Add the correct data source
     rankingStartTime?: Timestamp | null; // Timestamp when ranking phase began
   } | null;
   isSubmittingRanking: boolean;
   hasSubmittedRanking: boolean;
   rankingError: string | null;
-  onRankingSubmit: (rankedPlayerIds: string[]) => void;
+  onRankingSubmit: (rankings: { [trackId: string]: number }) => void; // Submit rankings object
   // Timer props
   timeLimit: number | null; // Time limit in seconds, or null for none
   // startTime prop is derived from roundData.rankingStartTime
@@ -111,21 +121,26 @@ export const RankingPhase: React.FC<RankingPhaseProps> = ({
   onRankingSubmit,
   timeLimit, // Destructure timer prop
 }) => {
-  const playerSongs = roundData?.playerSongs || {};
-  const ownSongEntry = Object.entries(playerSongs).find(([pId]) => pId === playerId);
-  const otherSongsEntries = Object.entries(playerSongs).filter(([pId]) => pId !== playerId);
+  // Get the full list intended for ranking
+  const songsForRankingList = roundData?.songsForRanking || [];
+  // Find the current player's submission details from playerSongs map
+  const ownSubmission = roundData?.playerSongs?.[playerId];
 
   const [rankedSongs, setRankedSongs] = useState<SortableSongItem[]>([]);
   const [remainingTime, setRemainingTime] = useState<number | null>(null);
   const [isTimeUp, setIsTimeUp] = useState(false);
   const startTime = roundData?.rankingStartTime ?? null; // Get start time from roundData
 
-  // Initialize rankedSongs state when component mounts or songs change
+  // Initialize rankedSongs state based on songsForRanking, excluding own song
   useEffect(() => {
-    setRankedSongs(
-      otherSongsEntries.map(([pId, songData]) => ({ id: pId, data: songData }))
-    );
-  }, [roundData?.playerSongs, playerId]);
+    const ownTrackId = ownSubmission?.trackId;
+    const songsToRank = songsForRankingList
+      .filter(song => song.trackId !== ownTrackId) // Exclude own song using trackId
+      .map(songData => ({ id: songData.trackId, data: songData })); // Use trackId as sortable ID
+
+    setRankedSongs(songsToRank);
+    // Dependencies: the list of songs and the player's own submission details
+  }, [songsForRankingList, ownSubmission]);
 
   // Timer logic
   useEffect(() => {
@@ -190,6 +205,7 @@ export const RankingPhase: React.FC<RankingPhaseProps> = ({
 
     if (over && active.id !== over.id) {
       setRankedSongs((items) => {
+        // Find indices based on trackId (which is item.id now)
         const oldIndex = items.findIndex((item) => item.id === active.id);
         const newIndex = items.findIndex((item) => item.id === over.id);
         return arrayMove(items, oldIndex, newIndex);
@@ -202,8 +218,13 @@ export const RankingPhase: React.FC<RankingPhaseProps> = ({
     if (isTimeUp || hasSubmittedRanking || isSubmittingRanking) {
         return;
     }
-    const rankedPlayerIds = rankedSongs.map(item => item.id);
-    onRankingSubmit(rankedPlayerIds);
+    // Create the rankings object { trackId: rank } expected by the backend
+    const rankings: { [trackId: string]: number } = {};
+    rankedSongs.forEach((item, index) => {
+      // Rank is 1-based
+      rankings[item.id] = index + 1;
+    });
+    onRankingSubmit(rankings);
   };
 
   const numSongsToRank = rankedSongs.length;
@@ -242,7 +263,7 @@ export const RankingPhase: React.FC<RankingPhaseProps> = ({
             <CreativeButton
               onClick={handleSubmit}
               className="w-full h-12"
-              disabled={isSubmittingRanking || hasSubmittedRanking || isTimeUp}
+              disabled={isSubmittingRanking || hasSubmittedRanking}
             >
               {isSubmittingRanking ? (
                 <>
@@ -272,7 +293,7 @@ export const RankingPhase: React.FC<RankingPhaseProps> = ({
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragEnd={isTimeUp ? undefined : handleDragEnd}
+            onDragEnd={handleDragEnd} // Allow dragging even if time is up
           >
             <SortableContext
               items={rankedSongs.map((item) => item.id)}
@@ -287,28 +308,32 @@ export const RankingPhase: React.FC<RankingPhaseProps> = ({
           </DndContext>
         ) : (
           <p className="text-muted-foreground text-center font-handwritten">
-            {Object.keys(playerSongs).length <= 1
+            {/* Use songsForRankingList length to check if enough songs */}
+            {songsForRankingList.length <= 1
               ? "Not enough songs submitted to rank."
               : "Waiting for other submissions..."}
           </p>
         )}
 
-        {/* Display Own Song */}
-        {ownSongEntry && (
+        {/* Display Own Song using ownSubmission */}
+        {ownSubmission && (
           <div className="border-t border-border pt-4 mt-4 space-y-2">
             <p className="text-sm text-muted-foreground font-handwritten">
               Your submission (not ranked):
             </p>
             <div className="flex items-center gap-3 p-3 rounded-md border border-dashed border-muted bg-muted/50">
-              {/* Add album art here if available in ownSongEntry[1] */}
+              {/* Optional: Display album art if available */}
+              {ownSubmission.albumImageUrl && (
+                  <img src={ownSubmission.albumImageUrl} alt={`Album art for ${ownSubmission.name}`} className="w-10 h-10 rounded object-cover" />
+              )}
               <div className="flex-1 overflow-hidden">
-                <p className="font-medium truncate">{ownSongEntry[1].name}</p>
+                <p className="font-medium truncate">{ownSubmission.name}</p>
                 <p className="text-sm text-muted-foreground truncate">
-                  {ownSongEntry[1].artist}
+                  {ownSubmission.artist}
                 </p>
               </div>
-            </div>
-          </div>
+            </div> {/* Closing div for the ownSubmission section */}
+          </div> // Closing div for the main content area started on line 270
         )}
       </div>
     </PhaseCard>

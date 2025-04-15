@@ -78,107 +78,114 @@ export async function calculateScoresService(
 
       const playerSongsMap: { [playerId: string]: PlayerSongSubmission } = currentRound.playerSongs || {};
       logger.debug(`[${traceId}] Player songs map:`, { playerSongsMap });
-      // TODO: Include gameSongs if they are added later
 
-      // 1. Identify Unique Songs & Duplicates (using song name as temporary ID)
-      const songOccurrences: { [songName: string]: string[] } = {}; // songName -> [playerId1, playerId2,...]
-      const uniqueSongs: { songName: string, submitterPlayerId: string }[] = []; // Use first submitter for uniqueness
-      const songNameToSubmitterId: { [songName: string]: string } = {}; // Map song name back to a submitter ID
+      // 1. Identify Unique Songs & Duplicates (using trackId)
+      const trackIdOccurrences: { [trackId: string]: string[] } = {}; // trackId -> [playerId1, playerId2,...]
+      const uniqueSongsMap: { [trackId: string]: PlayerSongSubmission } = {}; // trackId -> first submission object
 
       Object.entries(playerSongsMap).forEach(([playerId, submission]) => {
-        const songName = submission.name; // Using name as ID for now
-        if (!songOccurrences[songName]) {
-          songOccurrences[songName] = [];
-          uniqueSongs.push({ songName: songName, submitterPlayerId: playerId }); // Add to unique list
-          songNameToSubmitterId[songName] = playerId; // Map name to first submitter
+        const trackId = submission.trackId;
+        if (!trackId) {
+            logger.warn(`[${traceId}] Submission from player ${playerId} is missing trackId. Skipping.`);
+            return;
         }
-        songOccurrences[songName].push(playerId);
+        if (!trackIdOccurrences[trackId]) {
+          trackIdOccurrences[trackId] = [];
+          uniqueSongsMap[trackId] = submission; // Store first submission for this trackId
+        }
+        trackIdOccurrences[trackId].push(playerId);
       });
-      const numberOfUniqueSongs = uniqueSongs.length;
-      logger.debug(`[${traceId}] Unique songs identified: ${numberOfUniqueSongs}`, { uniqueSongs, songOccurrences, songNameToSubmitterId });
+      const uniqueTrackIds = Object.keys(uniqueSongsMap);
+      const numberOfUniqueSongs = uniqueTrackIds.length;
+      logger.debug(`[${traceId}] Unique songs identified by trackId: ${numberOfUniqueSongs}`, { uniqueTrackIds, trackIdOccurrences });
 
-      // 2. Calculate Rank Sums for Unique Songs
-      const songRankSums: { [songName: string]: number } = {};
-      uniqueSongs.forEach(us => { songRankSums[us.songName] = 0; });
+      // 2. Calculate Rank Sums for Unique Songs (using trackId)
+      const trackRankSums: { [trackId: string]: number } = {};
+      uniqueTrackIds.forEach(trackId => { trackRankSums[trackId] = 0; });
 
       rankingsSnapshot.forEach(rankingDoc => {
-        const rankerPlayerId = rankingDoc.id; // ID of the player who submitted this ranking
+        const rankerPlayerId = rankingDoc.id;
         const rankingData = rankingDoc.data();
-        const playerRankings = rankingData?.rankings || {}; // Expected structure: { songNameOrId: rank }
+        // Submitted rankings are correctly keyed by trackId
+        const playerRankings: { [trackId: string]: number } = rankingData?.rankings || {};
 
-        Object.entries(playerRankings).forEach(([songKey, rank]) => {
-          if (songRankSums[songKey] !== undefined) {
-            // The key is the song name as expected.
-            songRankSums[songKey] += rank as number;
+        Object.entries(playerRankings).forEach(([trackId, rank]) => {
+          if (trackRankSums[trackId] !== undefined) {
+            trackRankSums[trackId] += rank;
           } else {
-            // The key might be a player ID; try to retrieve the submitted song name.
-            const submission = playerSongsMap[songKey];
-            if (submission && submission.name && songRankSums[submission.name] !== undefined) {
-              songRankSums[submission.name] += rank as number;
-            } else {
-              // If still not found, log a warning.
-              logger.warn(
-                `[${traceId}] Ranking found for unexpected song key '${songKey}' by player ${rankerPlayerId} in game ${gameId}, round ${roundNumber}. This rank was ignored.`
-              );
-            }
+            // This case should ideally not happen if validation is correct,
+            // but log if a submitted rank is for a trackId not in the unique list.
+            logger.warn(
+              `[${traceId}] Ranking found for unexpected trackId '${trackId}' by player ${rankerPlayerId} in game ${gameId}, round ${roundNumber}. This rank was ignored.`
+            );
           }
         });
       });
-      logger.debug(`[${traceId}] Calculated rank sums:`, { songRankSums });
+      logger.debug(`[${traceId}] Calculated rank sums by trackId:`, { trackRankSums });
 
-      // 3. Calculate Song Points (with Tie Handling)
-      const songPoints: { [songName: string]: number } = {};
-      const sortedSongsWithSums: [string, number][] = Object.entries(songRankSums).sort(([, sumA], [, sumB]) => sumA - sumB);
-      logger.debug(`[${traceId}] Sorted songs by rank sum:`, { sortedSongsWithSums });
+      // 3. Calculate Song Points (by trackId, with Tie Handling, based on TOTAL songs ranked)
+      const trackPoints: { [trackId: string]: number } = {};
+      // Sort by rank sum (ascending)
+      const sortedTracksWithSums: [string, number][] = Object.entries(trackRankSums).sort(([, sumA], [, sumB]) => sumA - sumB);
+      logger.debug(`[${traceId}] Sorted tracks by rank sum:`, { sortedTracksWithSums });
+
+      // Use the length of the actual list presented for ranking
+      const numberOfSongsRanked = currentRound.songsForRanking?.length || numberOfUniqueSongs; // Fallback to unique songs if songsForRanking is missing
+      logger.debug(`[${traceId}] Number of songs considered for point calculation: ${numberOfSongsRanked}`);
 
       let rankIndex = 0;
-      while (rankIndex < sortedSongsWithSums.length) {
-          const currentSum = sortedSongsWithSums[rankIndex][1];
+      while (rankIndex < sortedTracksWithSums.length) {
+          const currentSum = sortedTracksWithSums[rankIndex][1];
           let tieCount = 1;
-          // Count how many songs have the same rank sum
-          while (rankIndex + tieCount < sortedSongsWithSums.length && sortedSongsWithSums[rankIndex + tieCount][1] === currentSum) {
+          // Count how many tracks have the same rank sum
+          while (rankIndex + tieCount < sortedTracksWithSums.length && sortedTracksWithSums[rankIndex + tieCount][1] === currentSum) {
               tieCount++;
           }
 
           let pointsSum = 0;
           for (let i = 0; i < tieCount; i++) {
-              const rank = rankIndex + i;
-              const pointsForRank = numberOfUniqueSongs - rank; // N points for 1st (rank 0), N-1 for 2nd (rank 1)...
+              const rank = rankIndex + i; // 0-based rank
+              const pointsForRank = numberOfSongsRanked - rank; // Use total ranked count for points
               pointsSum += pointsForRank > 0 ? pointsForRank : 0; // Ensure points are not negative
           }
-          const pointsPerSong = Math.floor(pointsSum / tieCount); // Average points and round down
-          logger.debug(`[${traceId}] Tie calculation: rankIndex=${rankIndex}, tieCount=${tieCount}, pointsSum=${pointsSum}, pointsPerSong=${pointsPerSong}`);
-          // Assign points to all tied songs
+          // Average points for tied tracks and round down
+          const pointsPerTrack = Math.floor(pointsSum / tieCount);
+          logger.debug(`[${traceId}] Tie calculation: rankIndex=${rankIndex}, tieCount=${tieCount}, pointsSum=${pointsSum}, pointsPerTrack=${pointsPerTrack}`);
+
+          // Assign points to all tied tracks
           for (let i = 0; i < tieCount; i++) {
-              const songName = sortedSongsWithSums[rankIndex + i][0];
-              songPoints[songName] = pointsPerSong;
+              const trackId = sortedTracksWithSums[rankIndex + i][0];
+              trackPoints[trackId] = pointsPerTrack;
           }
           rankIndex += tieCount; // Move index past the tied group
       }
-      logger.debug(`[${traceId}] Calculated song points (with tie handling):`, { songPoints });
+      logger.debug(`[${traceId}] Calculated track points (with tie handling):`, { trackPoints });
 
       // 4. Calculate Player Scores for the Round
       const playerRoundScores: { [playerId: string]: { baseScore: number, bonus: number, penalty: number, total: number, jokerUsed: boolean } } = {};
 
       playersSnapshot.forEach(playerDoc => {
         const playerId = playerDoc.id;
-        const submittedSongName = playerSongsMap[playerId]?.name;
+        const submission = playerSongsMap[playerId];
+        const submittedTrackId = submission?.trackId;
 
         let baseScore = 0;
         let penalty = 0;
         const bonus = 0; // Bonus logic deferred
         const jokerUsed = false; // Joker logic deferred
 
-        if (submittedSongName) {
-          baseScore = songPoints[submittedSongName] || 0;
+        if (submittedTrackId) {
+          // Get score based on the points awarded to the submitted trackId
+          baseScore = trackPoints[submittedTrackId] || 0;
 
-          // Apply Duplicate Penalty
-          const submitters = songOccurrences[submittedSongName] || [];
+          // Apply Duplicate Penalty based on trackId occurrences
+          const submitters = trackIdOccurrences[submittedTrackId] || [];
           if (submitters.length > 1) {
             penalty = -(submitters.length - 1);
+            logger.debug(`[${traceId}] Applying duplicate penalty of ${penalty} to player ${playerId} for track ${submittedTrackId}`);
           }
         } else {
-          logger.warn(`[${traceId}] Player ${playerId} seems to have no song submission in round ${roundNumber}. Assigning 0 score.`);
+          logger.warn(`[${traceId}] Player ${playerId} seems to have no valid song submission (or missing trackId) in round ${roundNumber}. Assigning 0 score.`);
         }
 
         // Calculate total (Joker/Bonus deferred)
@@ -193,7 +200,7 @@ export async function calculateScoresService(
           total: roundTotal,
           jokerUsed: jokerUsed,
         };
-        logger.debug(`[${traceId}] Calculated score for player ${playerId}:`, { submittedSongName, baseScore, penalty, bonus, jokerUsed, roundTotal });
+        logger.debug(`[${traceId}] Calculated score for player ${playerId}:`, { submittedTrackId, baseScore, penalty, bonus, jokerUsed, roundTotal });
       });
 
       logger.debug(`[${traceId}] Transaction (Calculate Scores Service ${gameId}/R${roundNumber}): Scoring logic complete. Final round scores:`, { playerRoundScores });

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { CreativeButton } from "@/components/CreativeButton/CreativeButton";
 import { PhaseCard } from "@/components/PhaseCard/PhaseCard";
-import { MusicTrack } from '@/types/music';
+import { MusicTrack } from '@/types/music'; // Import the correct frontend type
 import { Play, Pause, SkipForward, SkipBack, Music, Loader2, AlertCircle, TimerOff } from 'lucide-react'; // Added TimerOff
 import logger from '@/lib/logger';
 import { controlPlaybackAPI, startRankingPhaseAPI } from '@/services/firebaseApi';
@@ -12,7 +12,7 @@ interface MusicPlaybackPhaseProps {
   playerId: string | null;
   isHost: boolean;
   currentRound: number;
-  submittedSongs: MusicTrack[];
+  songsForRanking: MusicTrack[]; // Use the imported MusicTrack type
   currentPlayingTrackIndex?: number | null;
   isPlaying?: boolean | null;
   playbackEndTime?: { seconds: number; nanoseconds: number; } | null; // Firestore Timestamp structure
@@ -23,7 +23,7 @@ export const MusicPlaybackPhase: React.FC<MusicPlaybackPhaseProps> = ({
   playerId,
   isHost,
   currentRound,
-  submittedSongs = [],
+  songsForRanking = [], // Update prop name and default value
   currentPlayingTrackIndex = 0,
   isPlaying: isPlayingSynced = false,
   playbackEndTime,
@@ -38,9 +38,9 @@ export const MusicPlaybackPhase: React.FC<MusicPlaybackPhaseProps> = ({
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null); // Ref for interval ID
   const [isTimeUp, setIsTimeUp] = useState(false); // State to track if timer expired
 
-  // Ensure index is valid
-  const validIndex = Math.max(0, Math.min(currentPlayingTrackIndex ?? 0, submittedSongs.length - 1));
-  const currentTrack = submittedSongs.length > 0 ? submittedSongs[validIndex] : null;
+  // Ensure index is valid based on songsForRanking
+  const validIndex = Math.max(0, Math.min(currentPlayingTrackIndex ?? 0, songsForRanking.length - 1));
+  const currentTrack = songsForRanking.length > 0 ? songsForRanking[validIndex] : null;
 
   // Effect to synchronize local audio playback with Firestore state
   useEffect(() => {
@@ -214,8 +214,8 @@ export const MusicPlaybackPhase: React.FC<MusicPlaybackPhaseProps> = ({
             <CreativeButton
               onClick={handleStartRanking}
               className="w-full"
-              // Disable button if still starting, or if there are no songs, or if time is NOT up yet (unless time is null)
-              disabled={isStartingRanking || submittedSongs.length === 0 || (!isTimeUp && remainingTime !== null)}
+              // Disable button if still starting, or if there are no songs
+              disabled={isStartingRanking || songsForRanking.length === 0} // Check songsForRanking length
             >
               {isStartingRanking ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -261,7 +261,7 @@ export const MusicPlaybackPhase: React.FC<MusicPlaybackPhaseProps> = ({
             {currentTrack ? (
               <>
                 <p className="text-lg font-semibold font-handwritten truncate max-w-full">{currentTrack.name}</p>
-                <p className="text-sm text-muted-foreground truncate max-w-full">{currentTrack.artistName}</p>
+                <p className="text-sm text-muted-foreground truncate max-w-full">{currentTrack.artistName}</p> {/* Use artistName field from MusicTrack */}
                 {!currentTrack.previewUrl && (
                   <p className="text-xs text-destructive mt-1">(Preview unavailable)</p>
                 )}
@@ -270,13 +270,13 @@ export const MusicPlaybackPhase: React.FC<MusicPlaybackPhaseProps> = ({
                 </p>
               </>
             ) : (
-              <p className="text-muted-foreground">No songs submitted yet.</p>
+              <p className="text-muted-foreground">No songs available for playback.</p>
             )}
           </div>
         </div>
 
         {/* Playback Controls (Host Only) */}
-        {isHost && submittedSongs.length > 0 && (
+        {isHost && songsForRanking.length > 0 && ( // Check songsForRanking length
           <div className="flex justify-center items-center gap-2 sm:gap-4 mt-4">
             <CreativeButton
               onClick={() => handleHostControl("prev")}

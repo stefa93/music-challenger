@@ -5,8 +5,8 @@
 *
 
 ## Current Focus
-*   [2025-04-15 09:13:26] - Implementing improved QR Code joining functionality using a dedicated `/join?gameId=XYZ` route. See plan in `decisionLog.md`.
-*   [2025-04-15 07:33:16] - Addressing backlog items #22 (Music Playback) and #23 (Page Scrolling).
+*   [2025-04-15 10:43:42] - Completed implementation and fixes for QR Code joining, minimum song count logic, ranking submission/display, scoring calculation (using trackId, based on total ranked songs), duplicate song handling (penalty + unique list for ranking), and consistent host challenge selection flow. See `decisionLog.md`.
+*   [2025-04-15 07:33:16] - Addressing backlog items #22 (Music Playback - partially addressed by ensuring correct song list) and #23 (Page Scrolling - Done).
 *   [2025-04-13 16:46:00] - Implementing Admin Dashboard feature (view-only, `/admin` route, periodic refresh). See plan in Architect Mode discussion and `decisionLog.md`.
 *   [2025-07-04 12:40:55] - Planning implementation of configurable Lobby settings (UI complete, backend/integration needed).
 ## Recent Changes
@@ -61,9 +61,11 @@
 *   [2025-03-30] - Initialized project Memory Bank and reviewed project brief/implementation plan.
 
 ## Open Questions/Issues
-
+*   [2025-04-15 10:43:42] - **Future Review:** Score calculation logic (`calculateScoresService`) should be reviewed in the future for potential edge cases or alternative scoring models (e.g., different point distributions, bonus point logic).
+*   [2025-04-15 10:43:42] - **Future Enhancement:** Music playback could be enhanced with options for individual playback control or casting to specific devices.
 *   [2025-04-02 00:00:21] - **Investigate:** Persistent Playwright E2E test failures (`tests/gameplay_round.spec.ts`) related to potential timeouts, unreliable input clearing, or scoring status updates require investigation. (Note: Previous Spotify-related test issues are resolved/obsolete due to Deezer refactor).
 *   [2025-09-04 14:02:00] - **Security TODO:** Implement proper Firebase Authentication (e.g., Anonymous Auth) to replace the temporary `playerId`-based authorization in Cloud Functions before production deployment.
+*   [2025-09-04 13:15:00] - **Documentation Note:** `docs/implementation-plan-game-phases.md` contains outdated information regarding Spotify SDK integration in the Music Playback phase section. The project now uses Deezer via a generic interface and HTML audio.
 *   [2025-09-04 13:15:00] - **Documentation Note:** `docs/implementation-plan-game-phases.md` contains outdated information regarding Spotify SDK integration in the Music Playback phase section. The project now uses Deezer via a generic interface and HTML audio.
 
 ---

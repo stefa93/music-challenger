@@ -16,7 +16,7 @@ interface SongResult {
 }
 
 interface RoundWinnerData {
-    winnerNames: string[]; // Array in case of ties
+    winnerPlayerIds: string[]; // Correct field name based on backend logs
     winningScore: number;
 }
 
@@ -42,10 +42,18 @@ export const RoundFinishedPhase: React.FC<RoundFinishedPhaseProps> = ({
   // Sort results by points descending
   const sortedResults = [...roundResults].sort((a, b) => b.pointsAwarded - a.pointsAwarded);
 
+  // Helper to get winner names from IDs using roundResults for lookup
   const getWinnerNames = () => {
-    if (!roundWinnerData || roundWinnerData.winnerNames.length === 0) return "N/A";
-    if (roundWinnerData.winnerNames.length === 1) return roundWinnerData.winnerNames[0];
-    return roundWinnerData.winnerNames.join(' & '); // Handle ties
+    if (!roundWinnerData || !roundWinnerData.winnerPlayerIds || roundWinnerData.winnerPlayerIds.length === 0) return "N/A";
+
+    const winnerNames = roundWinnerData.winnerPlayerIds.map(winnerId => {
+      // Find the player name from the results array
+      const resultEntry = roundResults.find(r => r.playerId === winnerId);
+      return resultEntry ? resultEntry.playerName : 'Unknown Player'; // Fallback if name not found
+    });
+
+    if (winnerNames.length === 1) return winnerNames[0];
+    return winnerNames.join(' & '); // Handle ties
   };
 
   return (

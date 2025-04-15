@@ -41,6 +41,12 @@ This file tracks the project's progress using a task list format.
 *   [2025-04-14 23:04:14] - Fixed `Timestamp.now()` error by importing `Timestamp` directly.
 *   [2025-04-14 22:56:58] - Implemented preview URL refresh and playback end time calculation in `submitSongNominationService`.
 *   [2025-04-14 22:56:58] - Enforced non-null `previewUrl` requirement in types and logic.
+*   [2025-04-15 10:43:56] - Implemented QR Code/Join Link fix (`/join` route, URL param handling, onboarding pre-fill).
+*   [2025-04-15 10:43:56] - Fixed backend logic to ensure minimum 5 unique songs for ranking (`songsForRanking`).
+*   [2025-04-15 10:43:56] - Fixed backend scoring logic (`calculateScoresService`) to use `trackId` and base points on total ranked songs.
+*   [2025-04-15 10:43:56] - Fixed frontend `RankingPhase` to use `songsForRanking`, submit correct data format, and handle UI state/bugs.
+*   [2025-04-15 10:43:56] - Fixed frontend `RoundFinishedPhase` error related to winner data structure.
+*   [2025-04-15 10:43:56] - Fixed backend `startNextRoundService` to ensure host selects challenge in all rounds.
 ## Current Tasks
 
 *   [2025-07-04 12:41:05] - Implement Lobby Settings - Backend:
@@ -99,4 +105,7 @@ This file tracks the project's progress using a task list format.
 
 *   Implement Lobby Settings functionality (Backend, Frontend Integration, Game Logic Integration).
 *   Perform verification testing for the Deezer refactor and Lobby Settings.
-*   Address backlog items (e.g., #22 - Playback, #23 - Scrolling).
+*   Address remaining backlog items (e.g., #22 - Playback synchronization details).
+*   Review score calculation logic for edge cases/alternative models (per user request).
+*   Investigate Playwright E2E test failures (`tests/gameplay_round.spec.ts`).
+*   Implement proper Firebase Authentication (Security TODO).
